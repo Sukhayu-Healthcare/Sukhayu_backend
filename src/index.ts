@@ -1,5 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
+import { pgConnection } from "./config/postgress.js";
+import { mongoConnection } from "./config/mongo.js";
 
 dotenv.config();
 
@@ -10,6 +12,12 @@ if (!process.env.PORT) {
 const PORT = Number(process.env.PORT) || 3000;
 const app = express();
 
+async function DBConnection() {
+  await pgConnection();
+  await mongoConnection();
+}
+
+DBConnection();
 app
   .listen(PORT, () => {
     console.log(`server has started ${PORT}`);
