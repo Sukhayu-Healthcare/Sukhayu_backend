@@ -1,6 +1,6 @@
 import { Client } from "pg";
 
-let client : Client | null = null
+ let pgclient : Client | null = null
 
 export async function pgConnection(){
 try {
@@ -8,17 +8,23 @@ try {
     if (!PG_URL) {
         throw new Error("Missing PostgreSQL environment variables");
       }
-      client = new Client({
+      pgclient = new Client({
         connectionString : PG_URL
       });
   
-      await client.connect();
+      await pgclient.connect();
       console.log("PostgreSQL connected successfully");
-  
-      return client;
+      
+      return pgclient;
 } catch (error) {
     console.error("Error connecting to PostgreSQL:", error);
     process.exit(1);
 }
 
+
+}
+
+export function getPgClinent(){
+  if(!pgclient)throw new Error(`No pgClient ${Error}`)
+    return pgclient
 }
