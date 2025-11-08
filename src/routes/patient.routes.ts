@@ -1,27 +1,13 @@
-import { Router, Request, Response } from "express";
-import { pool } from "../db/db"; // assumes you have db.ts exporting a pg Pool
+import express, { type Request, type Response } from "express";
+import { getPgClinent } from "../config/postgress.js";
 
-const router = Router();
-
-/**
- * @route   GET /api/v1/patients
- * @desc    Get all patients
- */
-router.get("/", async (req: Request, res: Response) => {
-  try {
-    const result = await pool.query("SELECT * FROM patient ORDER BY patient_id ASC");
-    res.status(200).json(result.rows);
-  } catch (err) {
-    console.error("Error fetching patients:", err);
-    res.status(500).json({ message: "Error fetching patients" });
-  }
-});
+export const patient = express.Router();
 
 /**
- * @route   POST /api/v1/patients
- * @desc    Add a new patient
+ * @route POST /patient/register
+ * @desc Register a new patient
  */
-router.post("/", async (req: Request, res: Response) => {
+patient.post("/register", async (req: Request, res: Response) => {
   try {
     const {
       patient_name,
@@ -36,6 +22,22 @@ router.post("/", async (req: Request, res: Response) => {
       patient_dist,
       patient_hist,
     } = req.body;
+
+    if (
+      !patient_name ||
+      !patient_password ||
+      !patient_gender ||
+      !patient_phone ||
+      !patient_village ||
+      !patient_taluka ||
+      !patient_dist
+    ) {
+      return res.status(400).json({
+        message: "Please fill all required fields",
+      });
+    }
+
+    const pg = getPgClinent();
 
     const insertQuery = `
       INSERT INTO patient (
@@ -61,15 +63,34 @@ router.post("/", async (req: Request, res: Response) => {
       patient_hist,
     ];
 
-    const result = await pool.query(insertQuery, values);
+    const result = await pg.query(insertQuery, values);
+
     res.status(201).json({
-      message: "Patient created successfully",
+      message: "Patient registered successfully",
       patient: result.rows[0],
     });
-  } catch (err) {
-    console.error("Error creating patient:", err);
-    res.status(500).json({ message: "Error creating patient" });
+  } catch (error) {
+    console.error("Error in /register:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
   }
 });
 
-export default router;
+/**
+ * @route GET /patient/all
+ * @desc Fetch all patients
+ */
+patient.get("/all", async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClinent();
+    const result = await pg.query("SELECT * FROM patient ORDER BY patient_id ASC");
+
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error in /all:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
+  }
+});
