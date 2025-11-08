@@ -7,7 +7,8 @@ export function getToken(userID: String) {
     console.log("Unable to get JWT_SECRET");
     process.exit(1);
   }
-  const token = jwt.sign({ userID }, secret);
+  // const token = jwt.sign({ userID }, secret);
+  const token = jwt.sign({ userId: userID }, secret, { expiresIn: "7d" });
   return token;
 }
 
@@ -36,12 +37,17 @@ export async function verifyToken(
       });
       return;
     }
-    const decoded = jwt.verify(token, secret) as { userId: string };
+    // const decoded = jwt.verify(token, secret) as { userId: string };
+    const decoded = jwt.verify(token, secret) as { userId?: string } | string;
+
     if (typeof decoded === "string" || !("userId" in decoded)) {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
-    (req as any).user = decoded.userId;
+    // (req as any).user = decoded.userId;
+    // ✅ Store the ID string directly on req.user
+    (req as any).user = (decoded as { userId: string }).userId;
+
     next();
   } catch (err: any) {
     if (err.name === "TokenExpiredError") {

@@ -5,55 +5,65 @@ import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const asha = express.Router();
 
+/**
+ * Asha login
+ * POST /asha/login
+ * body: { ashaId, password }
+ */
 asha.post("/login", async (req: Request, res: Response) => {
   try {
     const { ashaId, password } = req.body;
     if (!ashaId || !password) {
-      res.status(400).json({
-        message: "Please send ID and Password both",
-      });
+      res.status(400).json({ message: "Please send ID and Password both" });
       return;
     }
+
     const pg = getPgClinent();
     const result = await pg.query(
       `SELECT * FROM asha_workers WHERE asha_ID = $1`,
       [ashaId]
     );
-    if (result.rows.length == 0) {
-      res.status(404).json({
-        message: "Asha Worker not found",
-      });
-      return;
-    }
-    const asha = result.rows[0];
-    const compare = await argon2.verify(asha.asha_password, password);
-    if (!compare) {
-      res.status(404).json({
-        message: "Invalid Credentials",
-      });
+
+    if (result.rows.length === 0) {
+      res.status(404).json({ message: "Asha Worker not found" });
       return;
     }
 
-    const token = getToken(ashaId);
-    res.status(200).json({
-      ashaId,
-      token,
-    });
+    const ashaRow = result.rows[0];
+
+    // argon2.verify(hash, plainPassword)
+    const compare = await argon2.verify(ashaRow.asha_password, password);
+    if (!compare) {
+      res.status(401).json({ message: "Invalid Credentials" });
+      return;
+    }
+
+    // getToken now signs { userId: ... }
+    const token = getToken(String(ashaId));
+    res.status(200).json({ ashaId, token });
   } catch (error) {
     console.error("Error in /login:", error);
-    return res.status(500).json({
-      message: "Internal Server Error",
-    });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
+/**
+ * Asha profile
+ * GET /asha/profile
+ * Protected: requires Authorization: Bearer <token>
+ */
 asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClinent();
-    const ashaId = (req as any).user.ashaId;
+
+    // middleware puts the id string directly on req.user
+    const ashaId = (req as any).user;
+    if (!ashaId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
     const result = await pg.query(
-      `SELECT asha_ID, asha_name, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role, asha_created_at 
+      `SELECT asha_ID, asha_name, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role, asha_created_at
        FROM asha_workers WHERE asha_ID = $1`,
       [ashaId]
     );
@@ -69,10 +79,18 @@ asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Asha updates own profile
+ * PUT /asha/profile
+ * Protected
+ */
 asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClinent();
-    const ashaId = (req as any).user.ashaId;
+    const ashaId = (req as any).user;
+    if (!ashaId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
 
     const {
       asha_name,
@@ -149,3 +167,86 @@ asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+/**
+ * Asha registers a patient (protected)
+ * POST /asha/patient/register
+ */
+asha.post(
+  "/patient/register",
+  verifyToken,
+  async (req: Request, res: Response) => {
+    try {
+      const pg = getPgClinent();
+      const ashaId = (req as any).user;
+      if (!ashaId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      const {
+        patient_name,
+        patient_password,
+        patient_gender,
+        patient_dob,
+        patient_phone,
+        patient_supreme_id,
+        patient_profile_pic,
+        patient_village,
+        patient_taluka,
+        patient_dist,
+        patient_hist,
+      } = req.body;
+
+      if (
+        !patient_name ||
+        !patient_password ||
+        !patient_gender ||
+        !patient_phone ||
+        !patient_village ||
+        !patient_taluka ||
+        !patient_dist
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Please provide all required patient fields" });
+      }
+
+      // hash password before storing
+      const hashed = await argon2.hash(patient_password);
+
+      const insertQuery = `
+        INSERT INTO patient (
+          patient_name, patient_password, patient_gender, patient_dob,
+          patient_phone, patient_supreme_id, patient_profile_pic,
+          patient_village, patient_taluka, patient_dist, patient_hist
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING *;
+      `;
+
+      const values = [
+        patient_name,
+        hashed,
+        patient_gender,
+        patient_dob ?? null,
+        patient_phone,
+        patient_supreme_id ?? null,
+        patient_profile_pic ?? null,
+        patient_village,
+        patient_taluka,
+        patient_dist,
+        patient_hist ?? null,
+      ];
+
+      const result = await pg.query(insertQuery, values);
+
+      res.status(201).json({
+        message: "Patient registered successfully by ASHA",
+        patient: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Error in /patient/register:", error);
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
+);
