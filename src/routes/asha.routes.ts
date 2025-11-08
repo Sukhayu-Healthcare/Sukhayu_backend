@@ -68,3 +68,84 @@ asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClinent();
+    const ashaId = (req as any).user.ashaId;
+
+    const {
+      asha_name,
+      asha_village,
+      asha_phone,
+      asha_district,
+      asha_taluka,
+      asha_profile_pic,
+    } = req.body;
+
+    if (
+      !asha_name &&
+      !asha_village &&
+      !asha_phone &&
+      !asha_district &&
+      !asha_taluka &&
+      !asha_profile_pic
+    ) {
+      return res.status(400).json({
+        message: "Please provide at least one field to update",
+      });
+    }
+
+    const fields: string[] = [];
+    const values: any[] = [];
+    let count = 1;
+
+    if (asha_name) {
+      fields.push(`asha_name = $${count++}`);
+      values.push(asha_name);
+    }
+    if (asha_village) {
+      fields.push(`asha_village = $${count++}`);
+      values.push(asha_village);
+    }
+    if (asha_phone) {
+      fields.push(`asha_phone = $${count++}`);
+      values.push(asha_phone);
+    }
+    if (asha_district) {
+      fields.push(`asha_district = $${count++}`);
+      values.push(asha_district);
+    }
+    if (asha_taluka) {
+      fields.push(`asha_taluka = $${count++}`);
+      values.push(asha_taluka);
+    }
+    if (asha_profile_pic) {
+      fields.push(`asha_profile_pic = $${count++}`);
+      values.push(asha_profile_pic);
+    }
+
+    values.push(ashaId);
+
+    const query = `
+      UPDATE asha_workers
+      SET ${fields.join(", ")}
+      WHERE asha_ID = $${count}
+      RETURNING asha_ID, asha_name, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role, asha_created_at
+    `;
+
+    const result = await pg.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Profile not found" });
+    }
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      profile: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error in PUT /profile:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
