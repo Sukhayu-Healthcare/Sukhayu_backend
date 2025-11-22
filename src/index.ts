@@ -3,7 +3,10 @@ import dotenv from "dotenv";
 import { pgConnection } from "./config/postgress.js";
 import { mongoConnection } from "./config/mongo.js";
 import { asha } from "./routes/asha.routes.js";
+import { doctor } from "./routes/doctor.routes.js";
 import cors from "cors";
+import { patient } from "./routes/patient.routes.js";
+
 
 
 dotenv.config();
@@ -26,6 +29,8 @@ async function DBConnection() {
 DBConnection();
 
 app.use("/api/v1/asha", asha);
+app.use("/api/v1/doctor", doctor);
+app.use("/api/v1/patient", patient);
 app.get('/',(req,res)=>{
   res.send("whatsup")
 })
