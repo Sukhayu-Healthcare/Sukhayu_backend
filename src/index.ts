@@ -4,6 +4,7 @@ import { pgConnection } from "./config/postgress.js";
 import { mongoConnection } from "./config/mongo.js";
 import { asha } from "./routes/asha.routes.js";
 import cors from "cors";
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 dotenv.config();
 const app = express();
@@ -35,4 +36,7 @@ app.get('/',(req,res)=>{
 //   .on("error", (err) => {
 //     console.error("failed to start", err);
 //   });
-export default app;
+
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  app(req as any, res as any);
+}
