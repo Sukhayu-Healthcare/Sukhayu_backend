@@ -28,10 +28,11 @@ app.use("/api/v1/asha", asha);
 app.get('/',(req,res)=>{
   res.send("whatsup")
 })
-app
-  .listen(PORT, () => {
-    console.log(`server has started ${PORT}`);
-  })
-  .on("error", (err) => {
-    console.error("failed to start", err);
-  });
+// app
+//   .listen(PORT, () => {
+//     console.log(`server has started ${PORT}`);
+//   })
+//   .on("error", (err) => {
+//     console.error("failed to start", err);
+//   });
+export default app;
