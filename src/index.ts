@@ -3,10 +3,13 @@ import dotenv from "dotenv";
 import { pgConnection } from "./config/postgress.js";
 import { mongoConnection } from "./config/mongo.js";
 import { asha } from "./routes/asha.routes.js";
+import cors from "cors";
 
 dotenv.config();
 const app = express();
 app.use(express.json());
+app.use(cors())
+
 
 if (!process.env.PORT) {
   console.log("PORT not found as enviornment variable");
@@ -22,6 +25,9 @@ async function DBConnection() {
 DBConnection();
 
 app.use("/api/v1/asha", asha);
+app.get('/',(req,res)=>{
+  res.send("whatsup")
+})
 app
   .listen(PORT, () => {
     console.log(`server has started ${PORT}`);
