@@ -4,7 +4,7 @@ import { pgConnection } from "./config/postgress.js";
 import { mongoConnection } from "./config/mongo.js";
 import { asha } from "./routes/asha.routes.js";
 import cors from "cors";
-import type { VercelRequest, VercelResponse } from "@vercel/node";
+
 
 dotenv.config();
 const app = express();
@@ -29,14 +29,11 @@ app.use("/api/v1/asha", asha);
 app.get('/',(req,res)=>{
   res.send("whatsup")
 })
-// app
-//   .listen(PORT, () => {
-//     console.log(`server has started ${PORT}`);
-//   })
-//   .on("error", (err) => {
-//     console.error("failed to start", err);
-//   });
+app
+  .listen(PORT,"0.0.0.0", () => {
+    console.log(`server has started ${PORT}`);
+  })
+  .on("error", (err) => {
+    console.error("failed to start", err);
+  });
 
-export default function handler(req: VercelRequest, res: VercelResponse) {
-  return app(req as any, res as any);
-}
