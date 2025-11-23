@@ -10,13 +10,19 @@ export const patient = express.Router();
  * POST /patient/login
  * body: { patient_phone, password }
  */
+/**
+ * Patient login
+ * POST /patient/login
+ * body: { patient_phone, password }
+ */
 patient.post("/login", async (req: Request, res: Response) => {
   try {
     const { patient_phone, password } = req.body;
+
     if (!patient_phone || !password) {
-      return res
-        .status(400)
-        .json({ message: "Please send phone and password both" });
+      return res.status(400).json({
+        message: "Please send phone and password both",
+      });
     }
 
     const pg = getPgClinent();
@@ -31,10 +37,10 @@ patient.post("/login", async (req: Request, res: Response) => {
 
     const patientRow = result.rows[0];
 
-    // verify hashed password (stored in patient_password)
+    // Verify password
     const matches = await argon2.verify(patientRow.patient_password, password)
-      .catch((e) => {
-        console.error("argon2 verify error:", e);
+      .catch((err) => {
+        console.error("argon2 verify error:", err);
         return false;
       });
 
@@ -42,20 +48,60 @@ patient.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Create token for patient
+    // JWT for main user
     const token = getToken(String(patientRow.patient_id));
 
+    // ===============================
+    // 🚀 FEATURE: Get all family profiles
+    // ===============================
+
+    let familyProfiles = [];
+
+    // If user is a SUPER USER (supreme)
+    if (patientRow.patient_supreme_id === null) {
+      const familyQuery = await pg.query(
+        `SELECT patient_id, patient_name, patient_gender, patient_dob, 
+                patient_phone, patient_profile_pic
+         FROM patient 
+         WHERE patient_supreme_id = $1`,
+        [patientRow.patient_id]
+      );
+
+      familyProfiles = familyQuery.rows;
+    }
+
+    // If user is NOT super user, but they are a family member
+    // Get their super user's family list too
+    else {
+      const familyQuery = await pg.query(
+        `SELECT patient_id, patient_name, patient_gender, patient_dob,
+                patient_phone, patient_profile_pic
+         FROM patient
+         WHERE patient_supreme_id = $1`,
+        [patientRow.patient_supreme_id]
+      );
+
+      familyProfiles = familyQuery.rows;
+    }
+
     return res.status(200).json({
-      patient_id: patientRow.patient_id,
-      patient_name: patientRow.patient_name,
-      patient_phone: patientRow.patient_phone,
+      message: "Login successful",
       token,
+      patient: {
+        id: patientRow.patient_id,
+        name: patientRow.patient_name,
+        phone: patientRow.patient_phone,
+        supreme_id: patientRow.patient_supreme_id,
+      },
+      familyProfiles, // 👈 SEND PROFILES HERE
     });
-  } catch (error) {
-    console.error("Error in /patient/login:", error);
+
+  } catch (err) {
+    console.error("Login Error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 /**
  * Patient profile (protected)
