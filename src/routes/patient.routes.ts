@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { getPgClilent } from "../config/postgress.js";
+import { getPgClinent } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
@@ -20,7 +20,7 @@ patient.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    const pg = getPgClilent();
+    const pg = getPgClinent();
     const result = await pg.query(
       `SELECT * FROM patient WHERE patient_phone = $1`,
       [patient_phone]
@@ -104,7 +104,7 @@ patient.post("/login", async (req: Request, res: Response) => {
  */
 patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClilent();
+    const pg = getPgClinent();
 
     // middleware attaches the id string to req.user
     const patientId = (req as any).user;
@@ -138,7 +138,7 @@ patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
  */
 patient.get("/consultations", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClilent();
+    const pg = getPgClinent();
     const patientId = (req as any).user;
     if (!patientId) {
       return res.status(401).json({ message: "Invalid token payload" });
