@@ -28,7 +28,7 @@ asha.post("/login", async (req: Request, res: Response) => {
       res.status(404).json({ message: "Asha Worker not found" });
       return;
     }
-
+    console.log("form Asha")
     const ashaRow = result.rows[0];
 
 
