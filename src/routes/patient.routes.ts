@@ -12,6 +12,7 @@ export const patient = express.Router();
  */
 patient.post("/login", async (req: Request, res: Response) => {
   try {
+    console.log("patient")
     const { patient_phone, password } = req.body;
 
     if (!patient_phone || !password) {

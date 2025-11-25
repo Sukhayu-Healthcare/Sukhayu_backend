@@ -12,6 +12,7 @@ export const asha = express.Router();
  */
 asha.post("/login", async (req: Request, res: Response) => {
   try {
+    console.log("Asha")
     const { ashaId, password } = req.body;
     if (!ashaId || !password) {
       res.status(400).json({ message: "Please send ID and Password both" });

@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { getPgClinent } from "../config/postgress.js";
+import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken } from "../utils/middleware.js";
 
@@ -12,6 +12,7 @@ export const chemist = express.Router();
  */
 chemist.post("/login", async (req: Request, res: Response) => {
   try {
+    console.log("Chemist")
     const { chemistId, password } = req.body;
 
     // 1️⃣ Validation
@@ -22,7 +23,7 @@ chemist.post("/login", async (req: Request, res: Response) => {
     }
 
     // 2️⃣ Connect to PostgreSQL
-    const pg = getPgClinent();
+    const pg = getPgClient();
 
     // 3️⃣ Fetch chemist record
     const result = await pg.query(
