@@ -1,59 +1,134 @@
-
-import express, { type Request, type Response } from "express";
+import express from "express";
+import type { Request, Response } from "express";
 import { getPgClinent } from "../config/postgress.js";
 import * as argon2 from "argon2";
-import { getToken } from "../utils/middleware.js";
+import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const doctor = express.Router();
 
-/**
- * @route POST /doctor/login
- * @desc  Doctor login using phone and password
- * @body  { doc_phone, password }
- */
+/* ============================
+   DOCTOR LOGIN
+============================ */
 doctor.post("/login", async (req: Request, res: Response) => {
   try {
-    const { doc_phone, password } = req.body;
+    const { doc_id, doc_phone, password } = req.body;
 
-    if (!doc_phone || !password) {
-      return res.status(400).json({ message: "Please send phone and password both" });
+    if ((!doc_id && !doc_phone) || !password) {
+      return res.status(400).json({
+        message: "Provide Doctor ID or Phone with Password",
+      });
     }
 
     const pg = getPgClinent();
-    // We search by phone which is UNIQUE in schema
+
     const result = await pg.query(
-      `SELECT * FROM doctors WHERE doc_phone = $1`,
-      [doc_phone]
+      `SELECT * FROM doctors WHERE doc_id = $1 OR doc_phone = $2`,
+      [doc_id || null, doc_phone || null]
     );
 
-    if (result.rows.length === 0) {
+    if (!result.rows.length) {
       return res.status(404).json({ message: "Doctor not found" });
     }
 
     const doctorRow = result.rows[0];
 
-    const passwordMatches = await argon2.verify(doctorRow.doc_password, password)
-      .catch((e) => {
-        console.error("argon2 verify error:", e);
-        return false;
-      });
+    const validPassword = await argon2.verify(
+      doctorRow.doc_password,
+      password
+    );
 
-    if (!passwordMatches) {
+    if (!validPassword) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // create token (using doc_id as identifier)
     const token = getToken(String(doctorRow.doc_id));
 
-    return res.status(200).json({
-      doc_id: doctorRow.doc_id,
-      doc_name: doctorRow.doc_name,
-      doc_phone: doctorRow.doc_phone,
+    res.json({
+      message: "Login successful",
       token,
+      doctor: doctorRow
     });
-  } catch (error) {
-    console.error("Error in /doctor/login:", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+
+  } catch {
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
+/* ============================
+   AUTO STATUS + CONSULTATION
+============================ */
+doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClinent();
+    const doctorId = (req as any).user.userId;
+    const { patient_id, diagnosis, notes, items } = req.body;
+
+    // Set doctor BUSY
+    await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`, [doctorId]);
+
+    const consultRes = await pg.query(
+      `INSERT INTO consultations (patient_id, doc_id, diagnosis, notes)
+       VALUES ($1,$2,$3,$4)
+       RETURNING consultation_id, consultation_date`,
+      [patient_id, doctorId, diagnosis ?? null, notes ?? null]
+    );
+
+    const consultation_id = consultRes.rows[0].consultation_id;
+
+    if (Array.isArray(items) && items.length) {
+      const values: any[] = [];
+      const rows = items.map((it: any, i: number) => {
+        const base = i * 6;
+        values.push(
+          consultation_id,
+          it.medicine_name,
+          it.dosage ?? null,
+          it.frequency ?? null,
+          it.duration ?? null,
+          it.instructions ?? null
+        );
+        return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6})`;
+      });
+
+      await pg.query(
+        `INSERT INTO prescription_items
+        (consultation_id, medicine_name, dosage, frequency, duration, instructions)
+        VALUES ${rows.join(",")}`, values
+      );
+    }
+
+    // Set doctor AVAILABLE again
+    await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [doctorId]);
+
+    res.status(201).json({
+      message: "Consultation completed",
+      consultation_id,
+      consultation_date: consultRes.rows[0].consultation_date
+    });
+
+  } catch (error) {
+    const pg = getPgClinent();
+    const doctorId = (req as any).user.userId;
+
+    await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [doctorId]);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================
+   GET OWN CONSULTATIONS
+============================ */
+doctor.get("/consultations", verifyToken, async (req: Request, res: Response) => {
+  const pg = getPgClinent();
+  const doctorId = (req as any).user.userId;
+
+  const result = await pg.query(
+    `SELECT * FROM consultations WHERE doc_id=$1 ORDER BY consultation_date DESC`,
+    [doctorId]
+  );
+
+  res.json({
+    total: result.rows.length,
+    consultations: result.rows
+  });
+});

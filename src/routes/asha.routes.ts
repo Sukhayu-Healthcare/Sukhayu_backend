@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { getPgClinent } from "../config/postgress.js";
+import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
@@ -18,7 +18,7 @@ asha.post("/login", async (req: Request, res: Response) => {
       return;
     }
 
-    const pg = getPgClinent();
+    const pg = getPgClient();
     const result = await pg.query(
       `SELECT * FROM asha_workers WHERE asha_ID = $1`,
       [ashaId]
@@ -30,7 +30,7 @@ asha.post("/login", async (req: Request, res: Response) => {
     }
 
     const ashaRow = result.rows[0];
-    
+
 
     // argon2.verify(hash, plainPassword)
     // const compare = await argon2.verify(ashaRow.asha_password, password);
@@ -55,7 +55,7 @@ asha.post("/login", async (req: Request, res: Response) => {
  */
 asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClinent();
+    const pg = getPgClient();
 
     // middleware puts the id string directly on req.user
     const ashaId = (req as any).user;
@@ -87,7 +87,7 @@ asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
  */
 asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClinent();
+    const pg = getPgClient();
     const ashaId = (req as any).user;
     if (!ashaId) {
       return res.status(401).json({ message: "Invalid token payload" });
@@ -178,7 +178,7 @@ asha.post(
   verifyToken,
   async (req: Request, res: Response) => {
     try {
-      const pg = getPgClinent();
+      const pg = getPgClient();
       const ashaId = (req as any).user;
       if (!ashaId) {
         return res.status(401).json({ message: "Unauthorized" });

@@ -24,7 +24,7 @@ try {
 
 }
 
-export function getPgClinent(){
+export function getPgClient(){
   if(!pgclient)throw new Error(`No pgClient ${Error}`)
     return pgclient
 }
