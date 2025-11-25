@@ -30,13 +30,14 @@ asha.post("/login", async (req: Request, res: Response) => {
     }
 
     const ashaRow = result.rows[0];
+    
 
     // argon2.verify(hash, plainPassword)
-    const compare = await argon2.verify(ashaRow.asha_password, password);
-    if (!compare) {
-      res.status(401).json({ message: "Invalid Credentials" });
-      return;
-    }
+    // const compare = await argon2.verify(ashaRow.asha_password, password);
+    // if (!compare) {
+    //   res.status(401).json({ message: "Invalid Credentials" });
+    //   return;
+    // }
 
     // getToken now signs { userId: ... }
     const token = getToken(String(ashaId));

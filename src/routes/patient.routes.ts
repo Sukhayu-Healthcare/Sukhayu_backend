@@ -10,11 +10,6 @@ export const patient = express.Router();
  * POST /patient/login
  * body: { patient_phone, password }
  */
-/**
- * Patient login
- * POST /patient/login
- * body: { patient_phone, password }
- */
 patient.post("/login", async (req: Request, res: Response) => {
   try {
     const { patient_phone, password } = req.body;
@@ -37,8 +32,8 @@ patient.post("/login", async (req: Request, res: Response) => {
 
     const patientRow = result.rows[0];
 
-    // Verify password
-    const matches = await argon2.verify(patientRow.patient_password, password)
+    const matches = await argon2
+      .verify(patientRow.patient_password, password)
       .catch((err) => {
         console.error("argon2 verify error:", err);
         return false;
@@ -48,16 +43,10 @@ patient.post("/login", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // JWT for main user
     const token = getToken(String(patientRow.patient_id));
-
-    // ===============================
-    // 🚀 FEATURE: Get all family profiles
-    // ===============================
 
     let familyProfiles = [];
 
-    // If user is a SUPER USER (supreme)
     if (patientRow.patient_supreme_id === null) {
       const familyQuery = await pg.query(
         `SELECT patient_id, patient_name, patient_gender, patient_dob, 
@@ -70,8 +59,7 @@ patient.post("/login", async (req: Request, res: Response) => {
       familyProfiles = familyQuery.rows;
     }
 
-    // If user is NOT super user, but they are a family member
-    // Get their super user's family list too
+
     else {
       const familyQuery = await pg.query(
         `SELECT patient_id, patient_name, patient_gender, patient_dob,
@@ -93,15 +81,13 @@ patient.post("/login", async (req: Request, res: Response) => {
         phone: patientRow.patient_phone,
         supreme_id: patientRow.patient_supreme_id,
       },
-      familyProfiles, // 👈 SEND PROFILES HERE
+      familyProfiles, 
     });
-
   } catch (err) {
     console.error("Login Error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 
 /**
  * Patient profile (protected)
