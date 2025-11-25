@@ -129,6 +129,84 @@ asha.post("/login", async (req: Request, res: Response) => {
   }
 });
 
+
+asha.post("/register", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const loggedInAsha = (req as any).user; // from JWT: contains userId + role
+    const pg = getPgClient();
+
+    // Only Supervisor can register ASHA
+    const check = await pg.query("SELECT asha_role FROM asha_workers WHERE asha_ID = $1", [loggedInAsha]);
+
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: "Logged in ASHA not found" });
+    }else if(check.rows[0].asha_role != "SUPERVISOR"){
+      return res.status(403).json({ message: "Only Supervisors can register ASHA workers" });
+    }
+
+    const {
+      asha_name,
+      asha_password,
+      asha_village,
+      asha_phone,
+      asha_district,
+      asha_taluka,
+      asha_profile_pic
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !asha_name ||
+      !asha_password ||
+      !asha_village ||
+      !asha_phone ||
+      !asha_district ||
+      !asha_taluka
+    ) {
+      return res.status(400).json({ message: "All fields except profile pic are required" });
+    }
+
+
+    // Check if phone already exists
+    const exists = await pg.query(
+      "SELECT * FROM asha_workers WHERE asha_phone = $1",
+      [asha_phone]
+    );
+
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ message: "Phone number already registered" });
+    }
+
+    // Hash password
+    const hashedPassword = await argon2.hash(asha_password);
+
+    // Insert ASHA worker (role = ASHA)
+    const result = await pg.query(
+      `INSERT INTO asha_workers 
+        (asha_name, asha_password, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'ASHA')
+       RETURNING asha_ID, asha_name, asha_phone, asha_role`,
+      [
+        asha_name,
+        hashedPassword,
+        asha_village,
+        asha_phone,
+        asha_district,
+        asha_taluka,
+        asha_profile_pic || null
+      ]
+    );
+
+    return res.status(201).json({
+      message: "ASHA registered successfully",
+      asha: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error in /asha/register:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 /**
  * Asha profile
  * GET /asha/profile
