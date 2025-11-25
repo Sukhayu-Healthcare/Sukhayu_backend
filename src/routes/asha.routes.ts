@@ -5,6 +5,86 @@ import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const asha = express.Router();
 
+asha.post("/register-supervisor", async (req: Request, res: Response) => {
+  try {
+    const {
+      ashaName,
+      password,
+      ashaPhone,
+      ashaVillage,
+      ashaDistrict,
+      ashaTaluka,
+      ashaProfilePic,
+      ashaRole
+    } = req.body;
+
+    // Validate required fields
+    if (
+      !ashaName ||
+      !password ||
+      !ashaPhone ||
+      !ashaVillage ||
+      !ashaDistrict ||
+      !ashaTaluka ||
+      !ashaRole
+    ) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // Only allow Supervisors to register
+    if (ashaRole !== "SUPERVISOR") {
+      return res.status(403).json({ message: "Only Supervisors can register" });
+    }
+
+    const pg = getPgClient();
+
+    // Check if phone already exists
+    const existing = await pg.query(
+      "SELECT asha_ID FROM asha_workers WHERE asha_phone = $1",
+      [ashaPhone]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: "Phone number already registered" });
+    }
+
+    // Hash password
+    const hashedPassword = await argon2.hash(password);
+
+    // Insert Supervisor into DB
+    const result = await pg.query(
+      `INSERT INTO asha_workers
+        (asha_name, asha_password, asha_phone, asha_village, asha_district, asha_taluka, asha_profile_pic, asha_role)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING asha_ID`,
+      [
+        ashaName,
+        hashedPassword,
+        ashaPhone,
+        ashaVillage,
+        ashaDistrict,
+        ashaTaluka,
+        ashaProfilePic || null,
+        ashaRole
+      ]
+    );
+
+    const newAshaId = result.rows[0].asha_id;
+
+    // Generate JWT token
+    const token = getToken(String(newAshaId));
+
+    return res.status(201).json({
+      message: "Supervisor registered successfully",
+      supervisorId: newAshaId,
+      token
+    });
+  } catch (error) {
+    console.error("Error in /register-supervisor:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 /**
  * Asha login
  * POST /asha/login
@@ -179,6 +259,7 @@ asha.post(
   verifyToken,
   async (req: Request, res: Response) => {
     try {
+      console.log("hitted")
       const pg = getPgClient();
       const ashaId = (req as any).user;
       if (!ashaId) {
