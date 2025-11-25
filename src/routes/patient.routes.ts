@@ -1,5 +1,5 @@
 import express, { type Request, type Response } from "express";
-import { getPgClilent } from "../config/postgress.js";
+import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
@@ -20,7 +20,7 @@ patient.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    const pg = getPgClilent();
+    const pg = getPgClient();
     const result = await pg.query(
       `SELECT * FROM patient WHERE patient_phone = $1`,
       [patient_phone]
@@ -104,7 +104,7 @@ patient.post("/login", async (req: Request, res: Response) => {
  */
 patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClilent();
+    const pg = getPgClient();
 
     // middleware attaches the id string to req.user
     const patientId = (req as any).user;
@@ -138,7 +138,7 @@ patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
  */
 patient.get("/consultations", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClilent();
+    const pg = getPgClient();
     const patientId = (req as any).user;
     if (!patientId) {
       return res.status(401).json({ message: "Invalid token payload" });
@@ -187,6 +187,108 @@ patient.get("/consultations", verifyToken, async (req: Request, res: Response) =
     return res.status(200).json({ consultations: withItems });
   } catch (err) {
     console.error("Error in GET /patient/consultations:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+/**
+ * GET /patient/consultation-summary
+ * Protected — lightweight list for UI (one-line per consultation)
+ * Each item: { consultation_id, consultation_date, consultation_date_readable, doctor_name, doctor_id }
+ */
+patient.get("/consultation-summary", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const patientId = (req as any).user;
+    if (!patientId) return res.status(401).json({ message: "Invalid token payload" });
+
+    const q = `
+      SELECT c.consultation_id,
+             c.consultation_date,
+             d.doc_name AS doctor_name,
+             d.doc_id AS doctor_id
+      FROM consultations c
+      LEFT JOIN doctors d ON c.doctor_id = d.doc_id
+      WHERE c.patient_id = $1
+      ORDER BY c.consultation_date DESC
+    `;
+    const { rows } = await pg.query(q, [patientId]);
+
+    const formatDate = (d: any) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      try {
+        return dt.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      } catch {
+        return dt.toISOString().slice(0, 10);
+      }
+    };
+
+    const summary = rows.map((r: any) => ({
+      consultation_id: r.consultation_id,
+      consultation_date: r.consultation_date,
+      consultation_date_readable: formatDate(r.consultation_date),
+      doctor_name: r.doctor_name,
+      doctor_id: r.doctor_id,
+    }));
+
+    return res.status(200).json({ consultations: summary });
+  } catch (err) {
+    console.error("Error in GET /patient/consultation-summary:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+/**
+ * GET /patient/consultation/:id
+ * Protected — returns full consultation + prescription items for the given consultation_id
+ */
+patient.get("/consultation/:id", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const patientId = (req as any).user;
+    const consultationId = Number(req.params.id);
+    if (!patientId) return res.status(401).json({ message: "Invalid token payload" });
+    if (!Number.isInteger(consultationId) || consultationId <= 0)
+      return res.status(400).json({ message: "Invalid consultation id" });
+
+    const consultQ = `
+      SELECT c.consultation_id, c.doctor_id, d.doc_name AS doctor_name, d.doc_phone AS doctor_phone,
+             c.diagnosis, c.notes, c.consultation_date, c.patient_id
+      FROM consultations c
+      LEFT JOIN doctors d ON c.doctor_id = d.doc_id
+      WHERE c.consultation_id = $1
+    `;
+    const consultRes = await pg.query(consultQ, [consultationId]);
+    if (consultRes.rows.length === 0) return res.status(404).json({ message: "Consultation not found" });
+
+    const consult = consultRes.rows[0];
+    if (Number(consult.patient_id) !== Number(patientId)) return res.status(403).json({ message: "Access denied" });
+
+    const itemsQ = `
+      SELECT item_id, medicine_name, dosage, frequency, duration, instructions
+      FROM prescription_items
+      WHERE consultation_id = $1
+      ORDER BY item_id ASC
+    `;
+    const itemsRes = await pg.query(itemsQ, [consultationId]);
+
+    const result = {
+      consultation_id: consult.consultation_id,
+      consultation_date: consult.consultation_date,
+      doctor_id: consult.doctor_id,
+      doctor_name: consult.doctor_name,
+      doctor_phone: consult.doctor_phone,
+      diagnosis: consult.diagnosis,
+      notes: consult.notes,
+      items: itemsRes.rows
+    };
+
+    return res.status(200).json({ consultation: result });
+  } catch (err) {
+    console.error("Error in GET /patient/consultation/:id:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
