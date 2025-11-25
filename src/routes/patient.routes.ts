@@ -47,7 +47,7 @@ patient.post("/login", async (req: Request, res: Response) => {
     const token = getToken(String(patientRow.patient_id));
 
     // ===============================
-    // 🚀 FEATURE: Get all family profiles
+    // FEATURE: Get all family profiles
     // ===============================
 
     let familyProfiles = [];
