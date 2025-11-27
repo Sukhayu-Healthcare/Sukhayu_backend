@@ -5,6 +5,136 @@ import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const patient = express.Router();
 
+
+const router = express.Router();
+
+/**
+ * Universal Login
+ * POST /login
+ * body: { phone, password }
+ */
+patient.post("/v2/login", async (req: Request, res: Response) => {
+  try {
+    const { phone, password } = req.body;
+
+    if (!phone || !password) {
+      return res.status(400).json({
+        message: "Phone and password are required",
+      });
+    }
+
+    const pg = getPgClient();
+
+    // Fetch ALL users with same phone (patient, asha, supervisor)
+    const result = await pg.query(
+      `SELECT * FROM users WHERE phone = $1`,
+      [phone]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const allUsers = result.rows;
+
+    // Try password against every user, find the correct one
+    let matchedUser = null;
+
+    for (const u of allUsers) {
+      const match = await argon2.verify(u.user_password, password).catch(() => false);
+
+      if (match) {
+        matchedUser = u;
+        break;
+      }
+    }
+
+    if (!matchedUser) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // Sign token
+    const token = getToken(String(matchedUser.user_id));
+
+    // =========================================
+    //          PATIENT ROLE LOGIN
+    // =========================================
+    if (matchedUser.user_role === "PATIENT") {
+      const patientRes = await pg.query(
+        `SELECT * FROM patient WHERE user_id = $1`,
+        [matchedUser.user_id]
+      );
+
+      if (patientRes.rows.length === 0) {
+        return res.status(404).json({ message: "Patient record not found" });
+      }
+
+      const patientRow = patientRes.rows[0];
+
+      let familyProfiles = [];
+
+      // Case 1: Super-user (self supreme)
+      if (patientRow.supreme_id === patientRow.patient_id || patientRow.supreme_id === null) {
+        
+        const familyQuery = await pg.query(
+          `SELECT patient_id, patient_name, patient_gender, patient_dob,
+                  phone, profile_pic
+           FROM patient
+           WHERE supreme_id = $1`,
+          [patientRow.patient_id]
+        );
+
+        familyProfiles = familyQuery.rows;
+      }
+
+      // Case 2: Family member → Return all members under its supreme
+      else {
+        const familyQuery = await pg.query(
+          `SELECT patient_id, patient_name, patient_gender, patient_dob,
+                  phone, profile_pic
+           FROM patient
+           WHERE supreme_id = $1`,
+          [patientRow.supreme_id]
+        );
+
+        familyProfiles = familyQuery.rows;
+      }
+
+      return res.status(200).json({
+        message: "Login successful",
+        token,
+        role: matchedUser.user_role,
+        patient: {
+          id: patientRow.patient_id,
+          name: patientRow.patient_name,
+          phone: patientRow.phone,
+          supreme_id: patientRow.supreme_id,
+        },
+        familyProfiles,
+      });
+    }
+
+    // =========================================
+    //     NON-PATIENT (ASHA / SUPERVISOR)
+    // =========================================
+    return res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        id: matchedUser.user_id,
+        name: matchedUser.user_name,
+        phone: matchedUser.phone,
+        role: matchedUser.user_role,
+      }
+    });
+
+  } catch (error) {
+    console.error("Login Error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
 /**
  * Patient login
  * POST /patient/login
