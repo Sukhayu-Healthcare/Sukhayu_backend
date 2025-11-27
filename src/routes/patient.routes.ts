@@ -120,11 +120,11 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
     return res.status(200).json({
       message: "Login successful",
       token,
+      role: matchedUser.user_role,
       user: {
         id: matchedUser.user_id,
         name: matchedUser.user_name,
         phone: matchedUser.phone,
-        role: matchedUser.user_role,
       }
     });
 
@@ -240,25 +240,84 @@ patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
 
-    // middleware attaches the id string to req.user
-    const patientId = (req as any).user;
-    if (!patientId) {
-      return res
-        .status(401)
-        .json({ message: "Invalid token payload: patientId missing" });
+    const userId = (req as any).user; // from token
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload: userId missing" });
     }
 
-    const result = await pg.query(
-      `SELECT patient_id, patient_name, patient_gender, patient_dob, patient_phone, patient_profile_pic, patient_village, patient_taluka, patient_dist, patient_hist, patient_created_at
-       FROM patient WHERE patient_id = $1`,
-      [patientId]
+    // Get patient record using user_id
+    const patientRes = await pg.query(
+      `SELECT patient_id, gender, dob, phone, supreme_id,
+              profile_pic, village, taluka, district, history, 
+              created_at, registered_asha_id, user_id
+       FROM patient 
+       WHERE user_id = $1`,
+      [userId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Profile not found" });
+    if (patientRes.rows.length === 0) {
+      return res.status(404).json({ message: "Patient profile not found" });
     }
 
-    return res.status(200).json(result.rows[0]);
+    const patient = patientRes.rows[0];
+
+    // =====================
+    // Fetch ASHA worker (optional)
+    // =====================
+    let ashaWorker = null;
+
+    if (patient.registered_asha_id) {
+      const ashaRes = await pg.query(
+        `SELECT asha_id, asha_name, asha_phone, asha_village, asha_taluka, asha_dist
+         FROM asha_workers
+         WHERE asha_id = $1`,
+        [patient.registered_asha_id]
+      );
+      ashaWorker = ashaRes.rows[0] || null;
+    }
+
+    // =====================
+    // Fetch Family Profiles
+    // =====================
+    let familyProfiles = [];
+
+    // Case 1 → This patient is SUPER USER (self supreme OR supreme_id null)
+    if (patient.supreme_id === patient.patient_id || patient.supreme_id === null) {
+      
+      const famRes = await pg.query(
+        `SELECT patient_id, gender, dob, phone,
+                profile_pic, village, taluka, district
+         FROM patient
+         WHERE supreme_id = $1`,
+        [patient.patient_id]
+      );
+
+      familyProfiles = famRes.rows;
+    }
+
+    // Case 2 → Family Member (return all members under supreme)
+    else {
+      const famRes = await pg.query(
+        `SELECT patient_id, gender, dob, phone,
+                profile_pic, village, taluka, district
+         FROM patient
+         WHERE supreme_id = $1`,
+        [patient.supreme_id]
+      );
+
+      familyProfiles = famRes.rows;
+    }
+
+    // ================================
+    // Final Response
+    // ================================
+    return res.status(200).json({
+      message: "Profile fetched successfully",
+      patient,
+      familyProfiles,
+      ashaWorker,
+    });
+
   } catch (error) {
     console.error("Error in GET /patient/profile:", error);
     return res.status(500).json({ message: "Internal Server Error" });

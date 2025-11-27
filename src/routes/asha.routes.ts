@@ -8,40 +8,142 @@ export const asha = express.Router();
 asha.post("/register-supervisor", async (req: Request, res: Response) => {
   try {
     const {
-      ashaName,
+      name,
       password,
-      ashaPhone,
-      ashaVillage,
-      ashaDistrict,
-      ashaTaluka,
-      ashaProfilePic,
-      ashaRole,
+      phone,
+      village,
+      district,
+      taluka,
+      profilePic,
     } = req.body;
 
     // Validate required fields
     if (
-      !ashaName ||
-      !password ||
-      !ashaPhone ||
-      !ashaVillage ||
-      !ashaDistrict ||
-      !ashaTaluka ||
-      !ashaRole
+      !name || !password || !phone ||
+      !village || !district || !taluka
     ) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Only allow Supervisors to register
-    if (ashaRole !== "SUPERVISOR") {
-      return res.status(403).json({ message: "Only Supervisors can register" });
-    }
-
     const pg = getPgClient();
 
-    // Check if phone already exists
+    // Check if phone already exists in USERS table
     const existing = await pg.query(
-      "SELECT asha_ID FROM asha_workers WHERE asha_phone = $1",
-      [ashaPhone]
+      "SELECT user_id FROM users WHERE phone = $1",
+      [phone]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ message: "Phone number already registered" });
+    }
+
+    // Hash password
+    const hashedPassword = await argon2.hash(password);
+
+    // -----------------------------
+    // 1️⃣ Insert into USERS (Supervisor)
+    // -----------------------------
+    const userInsert = await pg.query(
+      `INSERT INTO users (user_name, user_password, phone, user_role)
+       VALUES ($1, $2, $3, 'SUPERVISOR')
+       RETURNING user_id`,
+      [name, hashedPassword, phone]
+    );
+
+    const newUserId = userInsert.rows[0].user_id;
+
+    // -----------------------------
+    // 2️⃣ Insert into ASHA_WORKERS
+    // supervisor has no supervisor_id
+    // -----------------------------
+    const ashaInsert = await pg.query(
+      `INSERT INTO asha_workers
+        (user_id, village, district, taluka, profile_pic, supervisor_id)
+       VALUES ($1, $2, $3, $4, $5, NULL)
+       RETURNING asha_id`,
+      [newUserId, village, district, taluka, profilePic || null]
+    );
+
+    const newAshaId = ashaInsert.rows[0].asha_id;
+
+    // JWT token
+    const token = getToken(String(newUserId));
+
+    return res.status(201).json({
+      message: "Supervisor registered successfully",
+      supervisor: {
+        userId: newUserId,
+        ashaId: newAshaId,
+        name,
+        phone,
+        role: "SUPERVISOR",
+      },
+      token,
+    });
+
+  } catch (error) {
+    console.error("Error in /register-supervisor:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const loggedInUserId = (req as any).user; // From JWT
+    const pg = getPgClient();
+
+    // 1️⃣ Check if logged-in user is a SUPERVISOR
+    const supervisorUser = await pg.query(
+      "SELECT user_role FROM users WHERE user_id = $1",
+      [loggedInUserId]
+    );
+
+    if (supervisorUser.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (supervisorUser.rows[0].user_role !== "SUPERVISOR") {
+      return res
+        .status(403)
+        .json({ message: "Only Supervisors can register ASHA workers" });
+    }
+
+    // 2️⃣ Get supervisor's ASHA ID
+    const supervisorAsha = await pg.query(
+      "SELECT asha_id FROM asha_workers WHERE user_id = $1",
+      [loggedInUserId]
+    );
+
+    if (supervisorAsha.rows.length === 0) {
+      return res.status(404).json({
+        message: "Supervisor ASHA profile not found",
+      });
+    }
+
+    const supervisorAshaId = supervisorAsha.rows[0].asha_id;
+
+    // 3️⃣ Extract request body
+    const {
+      name,
+      password,
+      phone,
+      village,
+      district,
+      taluka,
+      profilePic,
+    } = req.body;
+
+    if (!name || !password || !phone || !village || !district || !taluka) {
+      return res.status(400).json({
+        message: "All fields except profile pic are required",
+      });
+    }
+
+    // 4️⃣ Check if phone exists in USERS
+    const existing = await pg.query(
+      "SELECT user_id FROM users WHERE phone = $1",
+      [phone]
     );
 
     if (existing.rows.length > 0) {
@@ -50,174 +152,43 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
         .json({ message: "Phone number already registered" });
     }
 
-    // Hash password
+    // 5️⃣ Create USER entry (role = ASHA)
     const hashedPassword = await argon2.hash(password);
 
-    // Insert Supervisor into DB
-    const result = await pg.query(
-      `INSERT INTO asha_workers
-        (asha_name, asha_password, asha_phone, asha_village, asha_district, asha_taluka, asha_profile_pic, asha_role)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-       RETURNING asha_ID`,
-      [
-        ashaName,
-        hashedPassword,
-        ashaPhone,
-        ashaVillage,
-        ashaDistrict,
-        ashaTaluka,
-        ashaProfilePic || null,
-        ashaRole,
-      ]
+    const userInsert = await pg.query(
+      `INSERT INTO users (user_name, user_password, phone, user_role)
+       VALUES ($1, $2, $3, 'ASHA')
+       RETURNING user_id`,
+      [name, hashedPassword, phone]
     );
 
-    const newAshaId = result.rows[0].asha_id;
+    const newUserId = userInsert.rows[0].user_id;
 
-    // Generate JWT token
-    const token = getToken(String(newAshaId));
+    // 6️⃣ Create ASHA WORKER entry
+    const ashaInsert = await pg.query(
+      `INSERT INTO asha_workers
+        (user_id, village, district, taluka, profile_pic, supervisor_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING asha_id`,
+      [newUserId, village, district, taluka, profilePic || null, supervisorAshaId]
+    );
 
     return res.status(201).json({
-      message: "Supervisor registered successfully",
-      supervisorId: newAshaId,
-      token,
+      message: "ASHA worker registered successfully",
+      asha: {
+        userId: newUserId,
+        ashaId: ashaInsert.rows[0].asha_id,
+        supervisorId: supervisorAshaId,
+        name,
+        phone,
+        role: "ASHA",
+      },
     });
   } catch (error) {
-    console.error("Error in /register-supervisor:", error);
+    console.error("Error in /register-asha:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
-/**
- * Asha login
- * POST /asha/login
- * body: { ashaId, password }
- */
-asha.post("/login", async (req: Request, res: Response) => {
-  try {
-    console.log("Asha");
-    const { ashaId, password } = req.body;
-    if (!ashaId || !password) {
-      res.status(400).json({ message: "Please send ID and Password both" });
-      return;
-    }
-
-    const pg = getPgClient();
-    const result = await pg.query(
-      `SELECT * FROM asha_workers WHERE asha_ID = $1`,
-      [ashaId]
-    );
-
-    if (result.rows.length === 0) {
-      res.status(404).json({ message: "Asha Worker not found" });
-      return;
-    }
-    console.log("form Asha");
-    const ashaRow = result.rows[0];
-
-    const compare = await argon2.verify(ashaRow.asha_password, password);
-    if (!compare) {
-      res.status(401).json({ message: "Invalid Credentials" });
-      return;
-    }
-
-    // getToken now signs { userId: ... }
-    const token = getToken(String(ashaId));
-    res.status(200).json({ ashaId, token });
-  } catch (error) {
-    console.error("Error in /login:", error);
-    return res.status(500).json({ message: "Internal Server Error" });
-  }
-});
-
-asha.post(
-  "/register-asha",
-  verifyToken,
-  async (req: Request, res: Response) => {
-    try {
-      const loggedInAsha = (req as any).user; // from JWT: contains userId + role
-      const pg = getPgClient();
-
-      // Only Supervisor can register ASHA
-      const check = await pg.query(
-        "SELECT asha_role FROM asha_workers WHERE asha_ID = $1",
-        [loggedInAsha]
-      );
-
-      if (check.rows.length === 0) {
-        return res.status(404).json({ message: "Logged in ASHA not found" });
-      } else if (check.rows[0].asha_role != "SUPERVISOR") {
-        return res
-          .status(403)
-          .json({ message: "Only Supervisors can register ASHA workers" });
-      }
-
-      const {
-        asha_name,
-        asha_password,
-        asha_village,
-        asha_phone,
-        asha_district,
-        asha_taluka,
-        asha_profile_pic,
-      } = req.body;
-
-      // Validate required fields
-      if (
-        !asha_name ||
-        !asha_password ||
-        !asha_village ||
-        !asha_phone ||
-        !asha_district ||
-        !asha_taluka
-      ) {
-        return res
-          .status(400)
-          .json({ message: "All fields except profile pic are required" });
-      }
-
-      // Check if phone already exists
-      const exists = await pg.query(
-        "SELECT * FROM asha_workers WHERE asha_phone = $1",
-        [asha_phone]
-      );
-
-      if (exists.rows.length > 0) {
-        return res
-          .status(409)
-          .json({ message: "Phone number already registered" });
-      }
-
-      // Hash password
-      const hashedPassword = await argon2.hash(asha_password);
-
-      // Insert ASHA worker (role = ASHA)
-      const result = await pg.query(
-        `INSERT INTO asha_workers 
-        (asha_name, asha_password, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'ASHA')
-       RETURNING asha_ID, asha_name, asha_phone, asha_role`,
-        [
-          asha_name,
-          hashedPassword,
-          asha_village,
-          asha_phone,
-          asha_district,
-          asha_taluka,
-          asha_profile_pic || null,
-        ]
-      );
-
-      return res.status(201).json({
-        message: "ASHA registered successfully",
-        asha: result.rows[0],
-      });
-    } catch (error) {
-      console.error("Error in /asha/register:", error);
-      return res.status(500).json({ message: "Internal Server Error" });
-    }
-  }
-);
-
 /**
  * Asha profile
  * GET /asha/profile
@@ -227,29 +198,43 @@ asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
 
-    // middleware puts the id string directly on req.user
-    const ashaId = (req as any).user;
-    if (!ashaId) {
+    const userId = (req as any).user; // user_id from token
+    if (!userId) {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
+    // JOIN users + asha_workers
     const result = await pg.query(
-      `SELECT asha_ID, asha_name, asha_village, asha_phone, asha_district, asha_taluka, asha_profile_pic, asha_role, asha_created_at
-       FROM asha_workers WHERE asha_ID = $1`,
-      [ashaId]
+      `SELECT 
+          u.user_id,
+          u.user_name,
+          u.phone,
+          u.user_role,
+          u.created_at AS user_created_at,
+
+          a.asha_id,
+          a.village,
+          a.district,
+          a.taluka,
+          a.profile_pic,
+          a.supervisor_id
+       FROM asha_workers a
+       JOIN users u ON a.user_id = u.user_id
+       WHERE a.user_id = $1`,
+      [userId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Profile not found" });
+      return res.status(404).json({ message: "ASHA profile not found" });
     }
 
     return res.status(200).json(result.rows[0]);
+
   } catch (error) {
-    console.error("Error in /profile:", error);
+    console.error("Error in GET /asha/profile:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
-
 /**
  * Asha registers a patient (protected)
  * POST /asha/patient/register
@@ -262,82 +247,97 @@ asha.post(
       console.log("Asha → Register Patient");
 
       const pg = getPgClient();
-      const ashaId = (req as any).user; // JWT userId = asha_ID
+      const ashaUserId = (req as any).user; // user_id from JWT
 
-      if (!ashaId) {
+      if (!ashaUserId) {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
       const {
-        patient_name,
-        patient_password,
-        patient_gender,
-        patient_dob,
-        patient_phone,
-        patient_profile_pic,
-        patient_village,
-        patient_taluka,
-        patient_dist,
-        patient_hist,
-        patient_supreme_id
+        name,
+        password,
+        gender,
+        dob,
+        phone,
+        profile_pic,
+        village,
+        taluka,
+        district,
+        history,
+        supreme_id
       } = req.body;
 
-      // Required fields validation
-      if (
-        !patient_name ||
-        !patient_password ||
-        !patient_gender ||
-        !patient_phone ||
-        !patient_village ||
-        !patient_taluka ||
-        !patient_dist ||
-        !patient_supreme_id
-      ) {
+      // Required fields
+      if (!name || !password || !gender || !phone || !village || !taluka || !district) {
         return res.status(400).json({
-          message: "Please provide all required patient fields",
+          message: "Missing required fields",
         });
       }
 
-      // hash password before storing
-      const hashed = await argon2.hash(patient_password);
+      // Check if phone already used (multiple patients can have same phone)
+      const usersWithPhone = await pg.query(
+        "SELECT user_id FROM users WHERE phone = $1 AND user_role = 'PATIENT'",
+        [phone]
+      );
 
-      const insertQuery = `
-        INSERT INTO patient (
-          patient_name, patient_password, patient_gender, patient_dob,
-          patient_phone, patient_profile_pic, patient_village,
-          patient_taluka, patient_dist, patient_hist, registered_asha_id ,patient_supreme_id
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-        RETURNING *;
-      `;
+      // Hash password
+      const hashedPassword = await argon2.hash(password);
 
-      const values = [
-        patient_name,
-        hashed,
-        patient_gender,
-        patient_dob ?? null,
-        patient_phone,
-        patient_profile_pic ?? null,
-        patient_village,
-        patient_taluka,
-        patient_dist,
-        patient_hist ?? null,
-        ashaId, // <-- THE IMPORTANT PART: which ASHA registered
-        patient_supreme_id
-      ];
+      // Step 1: Create user entry
+      const userInsert = await pg.query(
+        `INSERT INTO users (user_name, user_password, phone, user_role)
+         VALUES ($1, $2, $3, 'PATIENT')
+         RETURNING user_id, created_at`,
+        [name, hashedPassword, phone]
+      );
 
-      const result = await pg.query(insertQuery, values);
+      const newUserId = userInsert.rows[0].user_id;
 
-      res.status(201).json({
+      // Step 2: Insert into patient table
+      const patientInsert = await pg.query(
+        `INSERT INTO patient (
+            user_id,
+            gender,
+            dob,
+            phone,
+            profile_pic,
+            village,
+            taluka,
+            district,
+            history,
+            supreme_id,
+            registered_asha_id
+         )
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         RETURNING *`,
+        [
+          newUserId,
+          gender,
+          dob ?? null,
+          phone,
+          profile_pic ?? null,
+          village,
+          taluka,
+          district,
+          history ?? null,
+          supreme_id ?? null,
+          ashaUserId // ASHA who registered
+        ]
+      );
+
+      return res.status(201).json({
         message: "Patient registered successfully by ASHA",
-        patient: result.rows[0],
+        user_id: newUserId,
+        patient: patientInsert.rows[0]
       });
+
     } catch (error) {
       console.error("Error in /patient/register:", error);
       return res.status(500).json({ message: "Internal Server Error" });
     }
   }
 );
+
 
 asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
