@@ -13,9 +13,9 @@ export const patient = express.Router();
 patient.post("/login", async (req: Request, res: Response) => {
   try {
     console.log("patient")
-    const { patient_phone, password } = req.body;
+    const { phone, password } = req.body;
 
-    if (!patient_phone || !password) {
+    if (!phone || !password) {
       return res.status(400).json({
         message: "Please send phone and password both",
       });
@@ -24,7 +24,7 @@ patient.post("/login", async (req: Request, res: Response) => {
     const pg = getPgClient();
     const result = await pg.query(
       `SELECT * FROM patient WHERE patient_phone = $1`,
-      [patient_phone]
+      [phone]
     );
 
     if (result.rows.length === 0) {
