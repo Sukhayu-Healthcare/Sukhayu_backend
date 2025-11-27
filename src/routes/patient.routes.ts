@@ -1,9 +1,5 @@
 import express, { type Request, type Response } from "express";
-<<<<<<< HEAD
-import { getPgClinent } from "../config/postgress.js";
-=======
 import { getPgClient } from "../config/postgress.js";
->>>>>>> 358fe4f4f61650424e7b80dc1ab865b4dd73c453
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
@@ -20,22 +16,20 @@ patient.post("/login", async (req: Request, res: Response) => {
     const { phone, password } = req.body;
 
     if (!phone || !password) {
+      console.log("1")
       return res.status(400).json({
         message: "Please send phone and password both",
       });
     }
 
-<<<<<<< HEAD
-    const pg = getPgClinent();
-=======
     const pg = getPgClient();
->>>>>>> 358fe4f4f61650424e7b80dc1ab865b4dd73c453
     const result = await pg.query(
       `SELECT * FROM patient WHERE patient_phone = $1`,
       [phone]
     );
-
+    console.log("2")
     if (result.rows.length === 0) {
+      console.log("3")
       return res.status(404).json({ message: "Patient not found" });
     }
 
@@ -49,6 +43,7 @@ patient.post("/login", async (req: Request, res: Response) => {
       });
 
     if (!matches) {
+      console.log("4")
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -87,7 +82,7 @@ patient.post("/login", async (req: Request, res: Response) => {
 
       familyProfiles = familyQuery.rows;
     }
-
+    console.log("6")
     return res.status(200).json({
       message: "Login successful",
       token,
@@ -113,11 +108,7 @@ patient.post("/login", async (req: Request, res: Response) => {
  */
 patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
-<<<<<<< HEAD
-    const pg = getPgClinent();
-=======
     const pg = getPgClient();
->>>>>>> 358fe4f4f61650424e7b80dc1ab865b4dd73c453
 
     // middleware attaches the id string to req.user
     const patientId = (req as any).user;
@@ -151,11 +142,7 @@ patient.get("/profile", verifyToken, async (req: Request, res: Response) => {
  */
 patient.get("/consultations", verifyToken, async (req: Request, res: Response) => {
   try {
-<<<<<<< HEAD
-    const pg = getPgClinent();
-=======
     const pg = getPgClient();
->>>>>>> 358fe4f4f61650424e7b80dc1ab865b4dd73c453
     const patientId = (req as any).user;
     if (!patientId) {
       return res.status(401).json({ message: "Invalid token payload" });
