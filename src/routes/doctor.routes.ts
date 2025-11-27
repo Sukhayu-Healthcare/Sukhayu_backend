@@ -1,6 +1,6 @@
 import express from "express";
 import type { Request, Response } from "express";
-import { getPgClinent } from "../config/postgress.js";
+import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
@@ -11,6 +11,7 @@ export const doctor = express.Router();
 ============================ */
 doctor.post("/login", async (req: Request, res: Response) => {
   try {
+    console.log("Doct")
     const { doc_id, doc_phone, password } = req.body;
 
     if ((!doc_id && !doc_phone) || !password) {
@@ -19,7 +20,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
       });
     }
 
-    const pg = getPgClinent();
+    const pg = getPgClient();
 
     const result = await pg.query(
       `SELECT * FROM doctors WHERE doc_id = $1 OR doc_phone = $2`,
@@ -59,7 +60,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
 ============================ */
 doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: Response) => {
   try {
-    const pg = getPgClinent();
+    const pg = getPgClient();
     const doctorId = (req as any).user.userId;
     const { patient_id, diagnosis, notes, items } = req.body;
 
@@ -107,7 +108,7 @@ doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: R
     });
 
   } catch (error) {
-    const pg = getPgClinent();
+    const pg = getPgClient();
     const doctorId = (req as any).user.userId;
 
     await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [doctorId]);
@@ -119,7 +120,7 @@ doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: R
    GET OWN CONSULTATIONS
 ============================ */
 doctor.get("/consultations", verifyToken, async (req: Request, res: Response) => {
-  const pg = getPgClinent();
+  const pg = getPgClient();
   const doctorId = (req as any).user.userId;
 
   const result = await pg.query(

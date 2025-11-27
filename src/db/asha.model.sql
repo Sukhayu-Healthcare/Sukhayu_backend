@@ -10,3 +10,12 @@ CREATE TABLE asha_workers (
     asha_role VARCHAR(10) NOT NULL CHECK (asha_role IN ('ASHA', 'SUPERVISOR')),
     asha_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 )
+
+ALTER TABLE asha_workers
+ADD COLUMN supervisor_id INTEGER;
+
+
+ALTER TABLE asha_workers
+ADD CONSTRAINT fk_supervisor
+FOREIGN KEY (supervisor_id)
+REFERENCES asha_workers(asha_ID);

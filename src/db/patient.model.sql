@@ -17,3 +17,12 @@ CREATE TABLE patient (
         REFERENCES patient(patient_id)
         ON DELETE SET NULL
 );
+
+ALTER TABLE patient
+ADD COLUMN registered_asha_id INT;
+
+ALTER TABLE patient
+ADD CONSTRAINT fk_registered_asha
+    FOREIGN KEY (registered_asha_id)
+    REFERENCES asha_workers(asha_ID)
+    ON DELETE SET NULL;
