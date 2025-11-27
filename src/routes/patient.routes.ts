@@ -15,7 +15,7 @@ const router = express.Router();
  */
 patient.post("/v2/login", async (req: Request, res: Response) => {
   try {
-    console.log("universal login")
+    console.log("universal login");
     const { phone, password } = req.body;
 
     if (!phone || !password) {
@@ -26,7 +26,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
 
     const pg = getPgClient();
 
-    // Fetch ALL users with same phone (patient, asha, supervisor)
+    // Fetch all users with same phone
     const result = await pg.query(
       `SELECT * FROM users WHERE phone = $1`,
       [phone]
@@ -38,12 +38,10 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
 
     const allUsers = result.rows;
 
-    // Try password against every user, find the correct one
+    // Match password
     let matchedUser = null;
-
     for (const u of allUsers) {
       const match = await argon2.verify(u.user_password, password).catch(() => false);
-
       if (match) {
         matchedUser = u;
         break;
@@ -54,7 +52,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // Sign token
+    // Create JWT
     const token = getToken(String(matchedUser.user_id));
 
     // =========================================
@@ -74,12 +72,13 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
 
       let familyProfiles = [];
 
-      // Case 1: Super-user (self supreme)
-      if (patientRow.supreme_id === patientRow.patient_id || patientRow.supreme_id === null) {
-        
+      // Case 1: Main patient (or first member)
+      if (
+        patientRow.supreme_id === patientRow.patient_id ||
+        patientRow.supreme_id === null
+      ) {
         const familyQuery = await pg.query(
-          `SELECT patient_id, patient_name, patient_gender, patient_dob,
-                  phone, profile_pic
+          `SELECT patient_id, gender, dob, phone, profile_pic
            FROM patient
            WHERE supreme_id = $1`,
           [patientRow.patient_id]
@@ -87,12 +86,10 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
 
         familyProfiles = familyQuery.rows;
       }
-
-      // Case 2: Family member → Return all members under its supreme
+      // Case 2: Family member
       else {
         const familyQuery = await pg.query(
-          `SELECT patient_id, patient_name, patient_gender, patient_dob,
-                  phone, profile_pic
+          `SELECT patient_id, gender, dob, phone, profile_pic
            FROM patient
            WHERE supreme_id = $1`,
           [patientRow.supreme_id]
@@ -105,18 +102,20 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
         message: "Login successful",
         token,
         role: matchedUser.user_role,
+
         patient: {
           id: patientRow.patient_id,
-          name: patientRow.patient_name,
-          phone: patientRow.phone,
+          name: matchedUser.user_name,   // FIXED
+          phone: matchedUser.phone,      // FIXED
           supreme_id: patientRow.supreme_id,
         },
+
         familyProfiles,
       });
     }
 
     // =========================================
-    //     NON-PATIENT (ASHA / SUPERVISOR)
+    //     ASHA / SUPERVISOR LOGIN
     // =========================================
     return res.status(200).json({
       message: "Login successful",
@@ -126,7 +125,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
         id: matchedUser.user_id,
         name: matchedUser.user_name,
         phone: matchedUser.phone,
-      }
+      },
     });
 
   } catch (error) {
@@ -134,6 +133,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 
 /**
