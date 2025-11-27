@@ -15,6 +15,7 @@ const router = express.Router();
  */
 patient.post("/v2/login", async (req: Request, res: Response) => {
   try {
+    console.log("universal login")
     const { phone, password } = req.body;
 
     if (!phone || !password) {
