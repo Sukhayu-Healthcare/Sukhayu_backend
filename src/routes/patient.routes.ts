@@ -4,9 +4,6 @@ import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const patient = express.Router();
-
-// const router = express.Router(); // ❌ unused, can be removed if you want
-
 /**
  * Universal Login
  * POST /login

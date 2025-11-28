@@ -317,36 +317,55 @@ asha.post(
       const newUserId = userInsert.rows[0].user_id;
 
       // Step 2: Insert into patient table
-      const patientInsert = await pg.query(
-        `INSERT INTO patient (
-            user_id,
-            gender,
-            dob,
-            phone,
-            profile_pic,
-            village,
-            taluka,
-            district,
-            history,
-            supreme_id,
-            registered_asha_id
-         )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         RETURNING *`,
-        [
-          newUserId,
-          gender,
-          dob ?? null,
-          phone,
-          profile_pic ?? null,
-          village,
-          taluka,
-          district,
-          history ?? null,
-          supreme_id ?? null,
-          registeredAshaId, // ✅ store asha_id, not user_id
-        ]
-      );
+     // Step 2: Insert into patient table (without supreme_id first)
+const patientInsert = await pg.query(
+  `INSERT INTO patient (
+      user_id,
+      gender,
+      dob,
+      phone,
+      profile_pic,
+      village,
+      taluka,
+      district,
+      history,
+      registered_asha_id
+   )
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+   RETURNING patient_id`,
+  [
+    newUserId,
+    gender,
+    dob ?? null,
+    phone,
+    profile_pic ?? null,
+    village,
+    taluka,
+    district,
+    history ?? null,
+    registeredAshaId
+  ]
+);
+
+const newPatientId = patientInsert.rows[0].patient_id;
+
+// Step 3: Self-assign supreme_id if not provided
+const finalSupremeId = supreme_id ?? newPatientId;
+
+// Step 4: Update patient to set correct supreme_id
+await pg.query(
+  `UPDATE patient SET supreme_id = $1 WHERE patient_id = $2`,
+  [finalSupremeId, newPatientId]
+);
+
+// Final Response
+return res.status(201).json({
+  message: "Patient registered successfully by ASHA",
+  user_id: newUserId,
+  patient_id: newPatientId,
+  supreme_id: finalSupremeId
+});
+
 
       return res.status(201).json({
         message: "Patient registered successfully by ASHA",
