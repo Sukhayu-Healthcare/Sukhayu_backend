@@ -16,3 +16,4 @@ CREATE TABLE asha_workers (
         FOREIGN KEY (supervisor_id)
         REFERENCES asha_workers(asha_id)
 );
+
