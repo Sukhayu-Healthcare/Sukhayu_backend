@@ -486,3 +486,46 @@ patient.get("/consultation/:id", verifyToken, async (req: Request, res: Response
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+patient.get("/search", async (req: Request, res: Response) => {
+  try {
+    const asha_id = (req as any).user;
+    const { name , phone} = req.query;
+    const pg = getPgClient();
+
+    if (name) {
+      const patientRes = await pg.query(
+        `SELECT patient_id, gender, dob, phone, profile_pic, village, taluka, district
+         FROM patient
+         WHERE user_id IN (
+           SELECT user_id FROM users WHERE user_name ILIKE $1
+         )
+         AND registered_asha_id = $2`,
+        [`%${name}%`, asha_id]
+      );
+     if (patientRes.rows.length === 0) {
+       return res.status(404).json({ message: "No patients found" });
+     }
+      const rows = patientRes.rows;
+      return res.status(200).json({ patients: rows });
+    }else if(phone){
+      const patientRes = await pg.query(`SELECT patient_id, gender, dob, phone, profile_pic, village, taluka, district
+         FROM patient
+         WHERE user_id IN (
+           SELECT user_id FROM users WHERE phone ILIKE $1
+         )
+         AND registered_asha_id = $2`, [phone, asha_id]);
+
+      if (patientRes.rows.length === 0) {
+        return res.status(404).json({ message: "No patients found" });
+      }
+       const rows = patientRes.rows;
+       return res.status(200).json({ patients: rows });
+    }else {
+      return res.status(400).json({ message: "Please provide name or phone to search" });
+    }
+  } catch (e) {
+    console.error("Search Error:", e);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
