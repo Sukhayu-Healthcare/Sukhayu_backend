@@ -5,6 +5,10 @@ import { getToken, verifyToken } from "../utils/middleware.js";
 
 export const asha = express.Router();
 
+/**
+ * Register Supervisor (ASHA head)
+ * POST /asha/register-supervisor
+ */
 asha.post("/register-supervisor", async (req: Request, res: Response) => {
   try {
     const {
@@ -18,10 +22,7 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
     } = req.body;
 
     // Validate required fields
-    if (
-      !name || !password || !phone ||
-      !village || !district || !taluka
-    ) {
+    if (!name || !password || !phone || !village || !district || !taluka) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -34,15 +35,15 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
     );
 
     if (existing.rows.length > 0) {
-      return res.status(409).json({ message: "Phone number already registered" });
+      return res
+        .status(409)
+        .json({ message: "Phone number already registered" });
     }
 
     // Hash password
     const hashedPassword = await argon2.hash(password);
 
-    // -----------------------------
     // 1️⃣ Insert into USERS (Supervisor)
-    // -----------------------------
     const userInsert = await pg.query(
       `INSERT INTO users (user_name, user_password, phone, user_role)
        VALUES ($1, $2, $3, 'SUPERVISOR')
@@ -52,10 +53,7 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
 
     const newUserId = userInsert.rows[0].user_id;
 
-    // -----------------------------
-    // 2️⃣ Insert into ASHA_WORKERS
-    // supervisor has no supervisor_id
-    // -----------------------------
+    // 2️⃣ Insert into ASHA_WORKERS (supervisor has no supervisor_id)
     const ashaInsert = await pg.query(
       `INSERT INTO asha_workers
         (user_id, village, district, taluka, profile_pic, supervisor_id)
@@ -66,7 +64,7 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
 
     const newAshaId = ashaInsert.rows[0].asha_id;
 
-    // JWT token
+    // JWT token (store user_id in token)
     const token = getToken(String(newUserId));
 
     return res.status(201).json({
@@ -80,20 +78,22 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
       },
       token,
     });
-
   } catch (error) {
     console.error("Error in /register-supervisor:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
+/**
+ * Supervisor registers an ASHA
+ * POST /asha/register-asha
+ */
 asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => {
   try {
-    const loggedInUserId = (req as any).user; // From JWT
+    const loggedInUserId = (req as any).user; // user_id from JWT
     const pg = getPgClient();
 
-    // 1️⃣ Check if logged-in user is a SUPERVISOR
+    // 1️⃣ Check if logged-in user is a SUPERVISOR (in USERS table)
     const supervisorUser = await pg.query(
       "SELECT user_role FROM users WHERE user_id = $1",
       [loggedInUserId]
@@ -109,7 +109,7 @@ asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => 
         .json({ message: "Only Supervisors can register ASHA workers" });
     }
 
-    // 2️⃣ Get supervisor's ASHA ID
+    // 2️⃣ Get supervisor's ASHA ID (from asha_workers)
     const supervisorAsha = await pg.query(
       "SELECT asha_id FROM asha_workers WHERE user_id = $1",
       [loggedInUserId]
@@ -189,6 +189,7 @@ asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => 
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * Asha profile
  * GET /asha/profile
@@ -229,12 +230,12 @@ asha.get("/profile", verifyToken, async (req: Request, res: Response) => {
     }
 
     return res.status(200).json(result.rows[0]);
-
   } catch (error) {
     console.error("Error in GET /asha/profile:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 /**
  * Asha registers a patient (protected)
  * POST /asha/patient/register
@@ -253,6 +254,20 @@ asha.post(
         return res.status(401).json({ message: "Unauthorized" });
       }
 
+      // Get ASHA's asha_id so we can store it in patient.registered_asha_id
+      const ashaRow = await pg.query(
+        `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
+        [ashaUserId]
+      );
+
+      if (ashaRow.rows.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "ASHA worker profile not found" });
+      }
+
+      const registeredAshaId = ashaRow.rows[0].asha_id;
+
       const {
         name,
         password,
@@ -264,18 +279,26 @@ asha.post(
         taluka,
         district,
         history,
-        supreme_id
+        supreme_id,
       } = req.body;
 
       // Required fields
-      if (!name || !password || !gender || !phone || !village || !taluka || !district) {
+      if (
+        !name ||
+        !password ||
+        !gender ||
+        !phone ||
+        !village ||
+        !taluka ||
+        !district
+      ) {
         return res.status(400).json({
           message: "Missing required fields",
         });
       }
 
-      // Check if phone already used (multiple patients can have same phone)
-      const usersWithPhone = await pg.query(
+      // (Optional) Check if a PATIENT user with same phone already exists
+      await pg.query(
         "SELECT user_id FROM users WHERE phone = $1 AND user_role = 'PATIENT'",
         [phone]
       );
@@ -294,43 +317,61 @@ asha.post(
       const newUserId = userInsert.rows[0].user_id;
 
       // Step 2: Insert into patient table
-      const patientInsert = await pg.query(
-        `INSERT INTO patient (
-            user_id,
-            gender,
-            dob,
-            phone,
-            profile_pic,
-            village,
-            taluka,
-            district,
-            history,
-            supreme_id,
-            registered_asha_id
-         )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-         RETURNING *`,
-        [
-          newUserId,
-          gender,
-          dob ?? null,
-          phone,
-          profile_pic ?? null,
-          village,
-          taluka,
-          district,
-          history ?? null,
-          supreme_id ?? null,
-          ashaUserId // ASHA who registered
-        ]
-      );
+     // Step 2: Insert into patient table (without supreme_id first)
+const patientInsert = await pg.query(
+  `INSERT INTO patient (
+      user_id,
+      gender,
+      dob,
+      phone,
+      profile_pic,
+      village,
+      taluka,
+      district,
+      history,
+      registered_asha_id
+   )
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+   RETURNING patient_id`,
+  [
+    newUserId,
+    gender,
+    dob ?? null,
+    phone,
+    profile_pic ?? null,
+    village,
+    taluka,
+    district,
+    history ?? null,
+    registeredAshaId
+  ]
+);
+
+const newPatientId = patientInsert.rows[0].patient_id;
+
+// Step 3: Self-assign supreme_id if not provided
+const finalSupremeId = supreme_id ?? newPatientId;
+
+// Step 4: Update patient to set correct supreme_id
+await pg.query(
+  `UPDATE patient SET supreme_id = $1 WHERE patient_id = $2`,
+  [finalSupremeId, newPatientId]
+);
+
+// Final Response
+return res.status(201).json({
+  message: "Patient registered successfully by ASHA",
+  user_id: newUserId,
+  patient_id: newPatientId,
+  supreme_id: finalSupremeId
+});
+
 
       return res.status(201).json({
         message: "Patient registered successfully by ASHA",
         user_id: newUserId,
-        patient: patientInsert.rows[0]
+        patient: patientInsert.rows[0],
       });
-
     } catch (error) {
       console.error("Error in /patient/register:", error);
       return res.status(500).json({ message: "Internal Server Error" });
@@ -338,13 +379,18 @@ asha.post(
   }
 );
 
-
+/**
+ * ASHA self profile update
+ * PUT /asha/profile
+ * - Allows ASHA to update: password, phone (users table) and profile_pic (asha_workers)
+ * - Name / address / role are blocked (only supervisor can change)
+ */
 asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const ashaId = (req as any).user; // token contains only userId as string
+    const userId = (req as any).user; // user_id from token
 
-    if (!ashaId) {
+    if (!userId) {
       return res.status(401).json({ message: "Invalid token payload" });
     }
 
@@ -359,7 +405,7 @@ asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
       asha_role,
     } = req.body;
 
-    // ❌ Block restricted fields
+    // Block restricted fields (only supervisor can change these)
     if (
       asha_name ||
       asha_village ||
@@ -380,45 +426,64 @@ asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
       });
     }
 
-    const fields: string[] = [];
-    const values: any[] = [];
-    let count = 1;
+    // 1️⃣ Update USERS (password / phone)
+    if (asha_password || asha_phone) {
+      const userFields: string[] = [];
+      const userValues: any[] = [];
+      let idx = 1;
 
-    // ✔ Update password if provided
-    if (asha_password) {
-      const hashed = await argon2.hash(asha_password);
-      fields.push(`asha_password = $${count++}`);
-      values.push(hashed);
+      if (asha_password) {
+        const hashed = await argon2.hash(asha_password);
+        userFields.push(`user_password = $${idx++}`);
+        userValues.push(hashed);
+      }
+
+      if (asha_phone) {
+        userFields.push(`phone = $${idx++}`);
+        userValues.push(asha_phone);
+      }
+
+      userValues.push(userId);
+
+      await pg.query(
+        `UPDATE users SET ${userFields.join(", ")} WHERE user_id = $${idx}`,
+        userValues
+      );
     }
 
-    // ✔ Update phone if provided
-    if (asha_phone) {
-      fields.push(`asha_phone = $${count++}`);
-      values.push(asha_phone);
-    }
-
-    // ✔ Update profile pic if provided
+    // 2️⃣ Update ASHA_WORKERS (profile_pic)
     if (asha_profile_pic) {
-      fields.push(`asha_profile_pic = $${count++}`);
-      values.push(asha_profile_pic);
+      await pg.query(
+        `UPDATE asha_workers
+         SET profile_pic = $1
+         WHERE user_id = $2`,
+        [asha_profile_pic, userId]
+      );
     }
 
-    // Add ID at end for WHERE clause
-    values.push(ashaId);
+    // 3️⃣ Return updated profile (same as GET /asha/profile)
+    const result = await pg.query(
+      `SELECT 
+          u.user_id,
+          u.user_name,
+          u.phone,
+          u.user_role,
+          u.created_at AS user_created_at,
 
-    const query = `
-      UPDATE asha_workers
-      SET ${fields.join(", ")}
-      WHERE asha_ID = $${count}
-      RETURNING 
-        asha_ID, asha_name, asha_phone, asha_profile_pic, 
-        asha_village, asha_district, asha_taluka, asha_role
-    `;
-
-    const result = await pg.query(query, values);
+          a.asha_id,
+          a.village,
+          a.district,
+          a.taluka,
+          a.profile_pic,
+          a.supervisor_id
+       FROM asha_workers a
+       JOIN users u ON a.user_id = u.user_id
+       WHERE a.user_id = $1`,
+      [userId]
+    );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ message: "Asha profile not found" });
+      return res.status(404).json({ message: "ASHA profile not found" });
     }
 
     res.status(200).json({
@@ -431,13 +496,22 @@ asha.put("/profile", verifyToken, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Supervisor updates an ASHA worker
+ * PUT /asha/supervisor/update-asha/:id
+ * :id = asha_id of ASHA to update
+ */
 asha.put(
   "/supervisor/update-asha/:id",
   verifyToken,
   async (req: Request, res: Response) => {
     try {
-      const supervisorId = (req as any).user; // token contains userId only
-      const ashaIdToUpdate = req.params.id;
+      const supervisorUserId = (req as any).user; // user_id of supervisor
+      const ashaIdToUpdate = Number(req.params.id);
+
+      if (!Number.isInteger(ashaIdToUpdate) || ashaIdToUpdate <= 0) {
+        return res.status(400).json({ message: "Invalid ASHA id" });
+      }
 
       const {
         asha_name,
@@ -447,23 +521,55 @@ asha.put(
         supervisor_id,
       } = req.body;
 
-      // First check: Is logged user a supervisor?
       const pg = getPgClient();
-      const supervisorCheck = await pg.query(
-        `SELECT asha_role FROM asha_workers WHERE asha_ID = $1`,
-        [supervisorId]
+
+      // 1️⃣ Check supervisor role from USERS table
+      const supervisorUser = await pg.query(
+        `SELECT user_role FROM users WHERE user_id = $1`,
+        [supervisorUserId]
       );
 
       if (
-        supervisorCheck.rows.length === 0 ||
-        supervisorCheck.rows[0].asha_role !== "SUPERVISOR"
+        supervisorUser.rows.length === 0 ||
+        supervisorUser.rows[0].user_role !== "SUPERVISOR"
       ) {
         return res
           .status(403)
           .json({ message: "Only Supervisors can update ASHA profiles" });
       }
 
-      // Nothing provided?
+      // 2️⃣ Get supervisor's own ASHA record (optional: enforce hierarchy)
+      const supervisorAsha = await pg.query(
+        `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
+        [supervisorUserId]
+      );
+
+      if (supervisorAsha.rows.length === 0) {
+        return res
+          .status(404)
+          .json({ message: "Supervisor ASHA profile not found" });
+      }
+
+      const supervisorAshaId = supervisorAsha.rows[0].asha_id;
+
+      // 3️⃣ Load ASHA to update
+      const ashaRow = await pg.query(
+        `SELECT asha_id, user_id, supervisor_id 
+         FROM asha_workers 
+         WHERE asha_id = $1`,
+        [ashaIdToUpdate]
+      );
+
+      if (ashaRow.rows.length === 0) {
+        return res.status(404).json({ message: "ASHA not found" });
+      }
+
+      const ashaUserId = ashaRow.rows[0].user_id;
+
+      // Optional: ensure this ASHA belongs to this supervisor
+      // if (ashaRow.rows[0].supervisor_id !== supervisorAshaId) { ... }
+
+      // 4️⃣ Validate at least one field provided
       if (
         !asha_name &&
         !asha_village &&
@@ -476,50 +582,68 @@ asha.put(
           .json({ message: "Please provide fields to update" });
       }
 
-      const fields: string[] = [];
-      const values: any[] = [];
-      let count = 1;
+      // 5️⃣ Build UPDATE for asha_workers (village/district/taluka/supervisor_id)
+      const fieldsAsha: string[] = [];
+      const valuesAsha: any[] = [];
+      let idx = 1;
 
-      if (asha_name) {
-        fields.push(`asha_name = $${count++}`);
-        values.push(asha_name);
-      }
       if (asha_village) {
-        fields.push(`asha_village = $${count++}`);
-        values.push(asha_village);
+        fieldsAsha.push(`village = $${idx++}`);
+        valuesAsha.push(asha_village);
       }
       if (asha_district) {
-        fields.push(`asha_district = $${count++}`);
-        values.push(asha_district);
+        fieldsAsha.push(`district = $${idx++}`);
+        valuesAsha.push(asha_district);
       }
       if (asha_taluka) {
-        fields.push(`asha_taluka = $${count++}`);
-        values.push(asha_taluka);
+        fieldsAsha.push(`taluka = $${idx++}`);
+        valuesAsha.push(asha_taluka);
       }
       if (supervisor_id) {
-        fields.push(`supervisor_id = $${count++}`);
-        values.push(supervisor_id);
+        fieldsAsha.push(`supervisor_id = $${idx++}`);
+        valuesAsha.push(supervisor_id);
       }
 
-      // Push ASHA ID for WHERE clause
-      values.push(ashaIdToUpdate);
-
-      const query = `
-      UPDATE asha_workers
-      SET ${fields.join(", ")}
-      WHERE asha_ID = $${count}
-      RETURNING asha_ID, asha_name, asha_village, asha_district, asha_taluka, supervisor_id;
-    `;
-
-      const result = await pg.query(query, values);
-
-      if (result.rows.length === 0) {
-        return res.status(404).json({ message: "Asha not found" });
+      if (fieldsAsha.length > 0) {
+        valuesAsha.push(ashaIdToUpdate);
+        await pg.query(
+          `
+          UPDATE asha_workers
+          SET ${fieldsAsha.join(", ")}
+          WHERE asha_id = $${idx}
+        `,
+          valuesAsha
+        );
       }
 
-      res.status(200).json({
-        message: "Asha updated successfully by Supervisor",
-        updatedAsha: result.rows[0],
+      // 6️⃣ Update ASHA's name in USERS if provided
+      if (asha_name) {
+        await pg.query(
+          `UPDATE users SET user_name = $1 WHERE user_id = $2`,
+          [asha_name, ashaUserId]
+        );
+      }
+
+      // 7️⃣ Return updated ASHA (join users + asha_workers)
+      const updatedRes = await pg.query(
+        `SELECT 
+           a.asha_id,
+           u.user_name AS asha_name,
+           u.phone     AS asha_phone,
+           a.village,
+           a.district,
+           a.taluka,
+           a.profile_pic,
+           a.supervisor_id
+         FROM asha_workers a
+         JOIN users u ON a.user_id = u.user_id
+         WHERE a.asha_id = $1`,
+        [ashaIdToUpdate]
+      );
+
+      return res.status(200).json({
+        message: "ASHA updated successfully by Supervisor",
+        updatedAsha: updatedRes.rows[0],
       });
     } catch (err) {
       console.error("Error updating ASHA:", err);
@@ -528,29 +652,60 @@ asha.put(
   }
 );
 
+/**
+ * Supervisor: view all ASHAs under them
+ * GET /asha/all-ashas
+ */
 asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const loggedInAshaId = (req as any).user;
+    const supervisorUserId = (req as any).user; // user_id
 
-    // Check if logged in ASHA is a Supervisor
-    const check = await pg.query(
-      "SELECT asha_role FROM asha_workers WHERE asha_ID = $1",
-      [loggedInAshaId]
+    // 1️⃣ Check if logged in user is a Supervisor (USERS)
+    const checkUser = await pg.query(
+      `SELECT user_role FROM users WHERE user_id = $1`,
+      [supervisorUserId]
     );
 
-    if (check.rows.length === 0) {
-      return res.status(404).json({ message: "Logged in ASHA not found" });
-    } else if (check.rows[0].asha_role != "SUPERVISOR") {
+    if (checkUser.rows.length === 0) {
+      return res.status(404).json({ message: "Logged in user not found" });
+    }
+
+    if (checkUser.rows[0].user_role !== "SUPERVISOR") {
       return res
         .status(403)
         .json({ message: "Only Supervisors can view all ASHA workers" });
     }
 
-    // Fetch all ASHA workers
+    // 2️⃣ Get supervisor's ASHA id
+    const supAshaRes = await pg.query(
+      `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
+      [supervisorUserId]
+    );
+
+    if (supAshaRes.rows.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Supervisor ASHA profile not found" });
+    }
+
+    const supervisorAshaId = supAshaRes.rows[0].asha_id;
+
+    // 3️⃣ Fetch all ASHA workers under this supervisor
     const result = await pg.query(
-      `SELECT asha_ID, asha_name, asha_phone, asha_village, asha_profile_pic,
-       FROM asha_workers WHERE asha_role = 'ASHA' AND supervisor_id = $1`,[loggedInAshaId]
+      `SELECT 
+         a.asha_id,
+         u.user_name AS asha_name,
+         u.phone     AS asha_phone,
+         a.village,
+         a.district,
+         a.taluka,
+         a.profile_pic
+       FROM asha_workers a
+       JOIN users u ON a.user_id = u.user_id
+       WHERE a.supervisor_id = $1
+         AND u.user_role = 'ASHA'`,
+      [supervisorAshaId]
     );
 
     return res.status(200).json({ ashas: result.rows });
