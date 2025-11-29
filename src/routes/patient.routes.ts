@@ -566,7 +566,7 @@ patient.get(
   }
 );
 
-patient.get("/search", async (req: Request, res: Response) => {
+patient.get("/search",verifyToken , async (req: Request, res: Response) => {
   try {
     const asha_id = (req as any).user;
     const { name , phone} = req.query;
@@ -586,7 +586,7 @@ patient.get("/search", async (req: Request, res: Response) => {
        return res.status(404).json({ message: "No patients found" });
      }
       const rows = patientRes.rows;
-      return res.status(200).json({ patients: rows });
+      return res.status(200).json({ message : "sucessfully found", patients: rows });
     }else if(phone){
       const patientRes = await pg.query(`SELECT patient_id, gender, dob, phone, profile_pic, village, taluka, district
          FROM patient
@@ -599,7 +599,7 @@ patient.get("/search", async (req: Request, res: Response) => {
         return res.status(404).json({ message: "No patients found" });
       }
        const rows = patientRes.rows;
-       return res.status(200).json({ patients: rows });
+       return res.status(200).json({ message : "sucessfully found", patients: rows });
     }else {
       return res.status(400).json({ message: "Please provide name or phone to search" });
     }
@@ -609,4 +609,40 @@ patient.get("/search", async (req: Request, res: Response) => {
   }
 });
 
+patient.get("/all", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const asha_id = (req as any).user;
+    const pg = getPgClient();
 
+    const patientRes = await pg.query(`
+      SELECT 
+        p.patient_id,
+        p.gender,
+        p.dob,
+        p.phone,
+        p.profile_pic,
+        p.village,
+        p.taluka,
+        p.district,
+        p.supreme_id,
+        u.user_name AS name,
+        u.phone AS user_phone
+      FROM patient p
+      LEFT JOIN users u ON p.user_id = u.user_id
+      WHERE p.registered_asha_id = $1
+      ORDER BY u.user_name ASC;
+    `, [asha_id]);
+
+    if (patientRes.rows.length === 0) {
+      return res.status(404).json({ message: "No patients found" });
+    }
+
+    return res.status(200).json({
+      message: "found all",
+      patients: patientRes.rows
+    });
+  } catch (err) {
+    console.error("Fetch Patient Error:", err);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
