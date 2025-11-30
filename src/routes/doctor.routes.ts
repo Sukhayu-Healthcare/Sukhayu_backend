@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
+import { HistoryDB } from "../mongo/history.model.js";
 
 export const doctor = express.Router();
 
@@ -59,26 +60,35 @@ doctor.post("/login", async (req: Request, res: Response) => {
    AUTO STATUS + CONSULTATION
 ============================ */
 doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: Response) => {
+  const pg = getPgClient();
+  const doctorId = (req as any).user.userId;
+
   try {
-    const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
-    const { patient_id, diagnosis, notes, items } = req.body;
+    const { patient_id, diagnosis, notes, items, vitals } = req.body;
 
-    // Set doctor BUSY
-    await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`, [doctorId]);
+    await pg.query("BEGIN"); // START SQL TRANSACTION
 
+    // 1. Mark doctor BUSY
+    await pg.query(
+      `UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`,
+      [doctorId]
+    );
+
+    // 2. Insert Consultation
     const consultRes = await pg.query(
-      `INSERT INTO consultations (patient_id, doc_id, diagnosis, notes)
+      `INSERT INTO consultations (patient_id, doctor_id, diagnosis, notes)
        VALUES ($1,$2,$3,$4)
        RETURNING consultation_id, consultation_date`,
       [patient_id, doctorId, diagnosis ?? null, notes ?? null]
     );
 
     const consultation_id = consultRes.rows[0].consultation_id;
+    const consultation_date = consultRes.rows[0].consultation_date;
 
-    if (Array.isArray(items) && items.length) {
+    // 3. Insert prescription items
+    if (Array.isArray(items) && items.length > 0) {
       const values: any[] = [];
-      const rows = items.map((it: any, i: number) => {
+      const rows = items.map((it, i) => {
         const base = i * 6;
         values.push(
           consultation_id,
@@ -88,31 +98,79 @@ doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: R
           it.duration ?? null,
           it.instructions ?? null
         );
-        return `($${base+1},$${base+2},$${base+3},$${base+4},$${base+5},$${base+6})`;
+        return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6})`;
       });
 
       await pg.query(
         `INSERT INTO prescription_items
         (consultation_id, medicine_name, dosage, frequency, duration, instructions)
-        VALUES ${rows.join(",")}`, values
+        VALUES ${rows.join(",")}`,
+        values
       );
     }
 
-    // Set doctor AVAILABLE again
-    await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [doctorId]);
+    // 4. Mark doctor AVAILABLE
+    await pg.query(
+      `UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`,
+      [doctorId]
+    );
 
-    res.status(201).json({
+    await pg.query("COMMIT"); // SUCCESSFUL SQL TRANSACTION
+
+    // --------------------------------------------------
+    // 5. 📌 INSERT INTO MONGODB (Medical History)
+    // --------------------------------------------------
+
+    const visitEntry = {
+      visit_date: consultation_date,
+      doctor_id: doctorId,
+      diagnosis: diagnosis ?? "",
+      medications: items?.map((it: any) => ({
+        name: it.medicine_name,
+        dose: it.dosage ?? null,
+        duration: it.duration ?? null
+      })) ?? [],
+      Vitals: vitals ?? {},
+      notes: notes ?? "",
+    };
+
+    // Check if history exists
+    const existing = await HistoryDB.findOne({ patient_id });
+
+    if (!existing) {
+      // Create new history document
+      await HistoryDB.create({
+        patient_id,
+        history: [visitEntry]
+      });
+    } else {
+      // Push visit entry into array
+      existing.history.push(visitEntry);
+      await existing.save();
+    }
+
+    // --------------------------------------------------
+
+    return res.status(201).json({
       message: "Consultation completed",
       consultation_id,
-      consultation_date: consultRes.rows[0].consultation_date
+      consultation_date
     });
 
   } catch (error) {
-    const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    console.error(error);
 
-    await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [doctorId]);
-    res.status(500).json({ message: "Internal Server Error" });
+    const pg = getPgClient();
+
+    await pg.query("ROLLBACK");
+
+    // Always mark doctor OFF
+    await pg.query(
+      `UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`,
+      [(req as any).user.userId]
+    );
+
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
