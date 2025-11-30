@@ -90,6 +90,7 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
  */
 asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => {
   try {
+    console.log("Supervisor → Register ASHA Worker");
     const loggedInUserId = (req as any).user; // user_id from JWT
     const pg = getPgClient();
 

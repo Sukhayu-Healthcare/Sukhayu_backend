@@ -17,3 +17,5 @@ CREATE TABLE asha_workers (
         REFERENCES asha_workers(asha_id)
 );
 
+ALTER TABLE asha_workers
+    ADD COLOUMN 
