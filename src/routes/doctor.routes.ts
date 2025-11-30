@@ -133,3 +133,83 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
     consultations: result.rows
   });
 });
+
+
+doctor.post("/register", async (req, res) => {
+  try {
+    console.log("Register Doctor");
+    const pg = getPgClient();
+    const {
+      doc_name,
+      doc_password,
+      doc_profile_pic,
+      doc_role,
+      hospital_address,
+      hospital_village,
+      hospital_taluka,
+      hospital_district,
+      hospital_state,
+      doc_phone,
+      doc_speciality
+    } = req.body;
+
+    // Required fields check
+    if (
+      !doc_name || !doc_password || !doc_role ||
+      !hospital_address || !hospital_village ||
+      !hospital_taluka || !hospital_district || !hospital_state ||
+      !doc_phone
+    ) {
+      return res.status(400).json({ message: "Required fields missing" });
+    }
+
+    // Validate doc_role
+    const validRoles = ["CHO", "PHC", "CIVIL"];
+    if (!validRoles.includes(doc_role)) {
+      return res.status(400).json({ message: "Invalid doctor role" });
+    }
+
+    // Hash Password
+    const hashedPassword = await argon2.hash(doc_password);
+
+    // Insert Doctor
+    const query = `
+      INSERT INTO doctors 
+      (doc_name, doc_password, doc_profile_pic, doc_role, hospital_address,
+       hospital_village, hospital_taluka, hospital_district, hospital_state,
+       doc_phone, doc_speciality)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING doc_id, doc_name, doc_role, doc_phone, doc_status, doc_created_at;
+    `;
+
+    const values = [
+      doc_name,
+      hashedPassword,
+      doc_profile_pic || null,
+      doc_role,
+      hospital_address,
+      hospital_village,
+      hospital_taluka,
+      hospital_district,
+      hospital_state,
+      doc_phone,
+      doc_speciality || null
+    ];
+
+    const result = await pg.query(query, values);
+
+    res.status(201).json({
+      message: "Doctor registered successfully",
+      doctor: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    if ((error as any).code === "23505") {
+      return res.status(400).json({ message: "Phone number already registered" });
+    }
+
+    res.status(500).json({ message: "Server error", error: (error as any).message });
+  }
+});
