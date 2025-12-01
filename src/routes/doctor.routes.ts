@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
+import { HistoryDB } from "../mongo/history.model.js";
 
 export const doctor = express.Router();
 
@@ -14,9 +15,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
     const { doc_id, doc_phone, password } = req.body;
 
     if ((!doc_id && !doc_phone) || !password) {
-      return res.status(400).json({
-        message: "Provide Doctor ID or Phone with Password",
-      });
+      return res.status(400).json({ message: "Provide Doctor ID/Phone and Password" });
     }
 
     const pg = getPgClient();
@@ -26,22 +25,49 @@ doctor.post("/login", async (req: Request, res: Response) => {
       [doc_id ?? null, doc_phone ?? null]
     );
 
-    if (!result.rows.length) {
-      return res.status(404).json({ message: "Doctor not found" });
-    }
+    if (!result.rows.length) return res.status(404).json({ message: "Doctor not found" });
 
     const doctorRow = result.rows[0];
 
-    const validPassword = await argon2.verify(
-      doctorRow.doc_password,
-      password
-    );
-
-    if (!validPassword) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    const validPassword = await argon2.verify(doctorRow.doc_password, password);
+    if (!validPassword) return res.status(401).json({ message: "Invalid credentials" });
 
     const token = getToken(String(doctorRow.doc_id));
+
+    res.json({ message: "Login successful", token, doctor: doctorRow });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================================================
+   2️⃣ PATIENT QUEUE SYSTEM (priority based)
+============================================================ */
+doctor.get("/queue", verifyToken, async (req, res) => {
+  try {
+    const pg = getPgClient();
+    const doctorId = (req as any).user.userId;
+
+    const result = await pg.query(
+      `SELECT q.queue_id, q.patient_id, q.priority, q.skipped_count,
+              q.tagged_emergency, q.in_time,
+              p.name, p.age, p.gender, p.symptoms
+       FROM patient_queue q
+       JOIN patients p ON p.patient_id = q.patient_id
+       WHERE q.doc_id = $1 AND q.status='WAITING'
+       ORDER BY 
+         CASE
+            WHEN tagged_emergency = TRUE THEN 0
+            WHEN priority = 'RED' THEN 1
+            WHEN priority = 'ORANGE' THEN 2
+            WHEN skipped_count >= 3 THEN 3
+            ELSE 4
+         END,
+         in_time ASC`,
+      [doctorId]
+    );
 
     res.json({
       message: "Login successful",
@@ -211,11 +237,12 @@ doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: R
     );
 
     const consultation_id = consultRes.rows[0].consultation_id;
+    const consultation_date = consultRes.rows[0].consultation_date;
 
     // Save medicines
     if (Array.isArray(items) && items.length) {
       const values: any[] = [];
-      const rows = items.map((it: any, i: number) => {
+      const rows = items.map((it, i) => {
         const base = i * 6;
         values.push(
           consultation_id,
@@ -244,6 +271,7 @@ doctor.post("/consultation-with-items", verifyToken, async (req: Request, res: R
     res.status(201).json({
       message: "Consultation completed",
       consultation_id,
+      consultation_date
       consultation_date: consultRes.rows[0].consultation_date,
     });
 

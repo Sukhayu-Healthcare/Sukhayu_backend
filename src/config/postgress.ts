@@ -2,6 +2,9 @@ import { Client } from "pg";
 
 let pgClient: Client | null = null;
 
+/* -----------------------------------------
+   🔌 Connect to PostgreSQL
+----------------------------------------- */
 export async function pgConnection() {
   try {
     const PG_URL = process.env.PG_URL;
@@ -18,12 +21,16 @@ export async function pgConnection() {
     console.log("PostgreSQL connected successfully");
 
     return pgClient;
+
   } catch (error) {
     console.error("Error connecting to PostgreSQL:", error);
     process.exit(1);
   }
 }
 
+/* -----------------------------------------
+   📌 Get existing pgClient (after connection)
+----------------------------------------- */
 export function getPgClient() {
   if (!pgClient) {
     throw new Error("PostgreSQL client not initialized. Call pgConnection() first.");

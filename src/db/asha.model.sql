@@ -1,21 +1,21 @@
 CREATE TABLE asha_workers (
-    asha_ID SERIAL PRIMARY KEY,
-    asha_name VARCHAR(100) NOT NULL,
-    asha_password VARCHAR(255) NOT NULL,
-    asha_village VARCHAR(20) NOT NULL,
-    asha_phone BIGINT UNIQUE NOT NULL CHECK (asha_phone BETWEEN 6000000000 AND 9999999999),
-    asha_district VARCHAR(20) NOT NULL,
-    asha_taluka VARCHAR(20) NOT NULL,
-    asha_profile_pic VARCHAR(500),
-    asha_role VARCHAR(10) NOT NULL CHECK (asha_role IN ('ASHA', 'SUPERVISOR')),
-    asha_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-)
+    asha_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL UNIQUE,
+    village VARCHAR(20) NOT NULL,
+    district VARCHAR(20) NOT NULL,
+    taluka VARCHAR(20) NOT NULL,
+    profile_pic VARCHAR(500),
+    supervisor_id INT,
+    
+    CONSTRAINT fk_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_supervisor
+        FOREIGN KEY (supervisor_id)
+        REFERENCES asha_workers(asha_id)
+);
 
 ALTER TABLE asha_workers
-ADD COLUMN supervisor_id INTEGER;
-
-
-ALTER TABLE asha_workers
-ADD CONSTRAINT fk_supervisor
-FOREIGN KEY (supervisor_id)
-REFERENCES asha_workers(asha_ID);
+    ADD COLOUMN 

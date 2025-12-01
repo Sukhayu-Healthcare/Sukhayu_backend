@@ -31,6 +31,7 @@ DBConnection();
 app.use("/api/v1/asha", asha);
 app.use("/api/v1/doctor", doctor);
 app.use("/api/v1/patient", patient);
+
 app.get('/',(req,res)=>{
   res.send("whatsup")
 })
