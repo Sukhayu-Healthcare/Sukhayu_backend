@@ -244,3 +244,308 @@ anc.get("/patient/:id", verifyToken, async (req: Request, res: Response) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+anc.post("/save", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const ashaId = (req as any).user.userId;
+
+    const {
+      survey_id,
+      patient_id,
+      visit_date,
+      child_age,
+      weight,
+      height,
+      symptoms,
+      vaccines_given,
+      referral_needed,
+      next_visit_date
+    } = req.body;
+
+    const result = await pg.query(
+      `INSERT INTO child_health_surveys (
+        survey_id, patient_id, asha_id,
+        visit_date, child_age, weight, height,
+        symptoms, vaccines_given,
+        referral_needed, next_visit_date
+      )
+      VALUES (
+        $1,$2,$3,
+        $4,$5,$6,$7,
+        $8,$9,
+        $10,$11
+      )
+      RETURNING *`,
+      [
+        survey_id,
+        patient_id,
+        ashaId,
+        visit_date,
+        child_age,
+        weight,
+        height,
+        symptoms,
+        vaccines_given, // send JSON string OR comma-separated
+        referral_needed,
+        next_visit_date
+      ]
+    );
+
+    res.status(201).json({
+      message: "Child health survey saved successfully",
+      data: result.rows[0],
+    });
+
+  } catch (err) {
+    console.error("Error saving child health survey:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================================================
+   2️⃣ GET ALL CHILD HEALTH SURVEYS FOR A PATIENT
+============================================================== */
+anc.get("/child/:id", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const { id } = req.params;
+
+    const result = await pg.query(
+      `SELECT ch.*,
+              aw.asha_name,
+              sp.supervisor_name
+       FROM child_health_surveys ch
+       LEFT JOIN asha_workers aw ON ch.asha_id = aw.asha_id
+       LEFT JOIN asha_supervisors sp ON aw.supervisor_id = sp.supervisor_id
+       WHERE ch.patient_id = $1
+       ORDER BY ch.visit_date DESC`,
+      [id]
+    );
+
+    res.json({
+      patient_id: id,
+      surveys: result.rows.map(row => ({
+        ...row,
+        handled_by_asha: {
+          asha_id: row.asha_id,
+          asha_name: row.asha_name
+        },
+        supervisor: {
+          supervisor_id: row.supervisor_id,
+          supervisor_name: row.supervisor_name
+        }
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching child health survey:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+anc.post("/save", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const ashaId = (req as any).user.userId;
+
+    const {
+      survey_id,
+      patient_id,
+      cough_more_than_2_weeks,
+      fever,
+      night_sweats,
+      weight_loss,
+      blood_in_sputum,
+      tb_contact_history,
+      risk_factors,
+      referral_needed,
+      remarks
+    } = req.body;
+
+    const result = await pg.query(
+      `INSERT INTO tb_surveys (
+        survey_id, patient_id, asha_id,
+        cough_more_than_2_weeks, fever, night_sweats, weight_loss, blood_in_sputum,
+        tb_contact_history, risk_factors,
+        referral_needed, remarks
+      )
+      VALUES (
+        $1,$2,$3,
+        $4,$5,$6,$7,$8,
+        $9,$10,
+        $11,$12
+      )
+      RETURNING *`,
+      [
+        survey_id,
+        patient_id,
+        ashaId,
+        cough_more_than_2_weeks,
+        fever,
+        night_sweats,
+        weight_loss,
+        blood_in_sputum,
+        tb_contact_history,
+        risk_factors,
+        referral_needed,
+        remarks
+      ]
+    );
+
+    res.status(201).json({
+      message: "TB survey saved successfully",
+      data: result.rows[0],
+    });
+
+  } catch (err) {
+    console.error("Error saving TB survey:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================================================
+   2️⃣ GET ALL TB SURVEYS FOR A PATIENT
+============================================================== */
+anc.get("/tb/:id", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const { id } = req.params;
+
+    const result = await pg.query(
+      `SELECT t.*,
+              aw.asha_name,
+              sp.supervisor_name
+       FROM tb_surveys t
+       LEFT JOIN asha_workers aw ON t.asha_id = aw.asha_id
+       LEFT JOIN asha_supervisors sp ON aw.supervisor_id = sp.supervisor_id
+       WHERE t.patient_id = $1
+       ORDER BY t.created_at DESC`,
+      [id]
+    );
+
+    res.json({
+      patient_id: id,
+      surveys: result.rows.map(row => ({
+        ...row,
+        handled_by_asha: {
+          asha_id: row.asha_id,
+          asha_name: row.asha_name
+        },
+        supervisor: {
+          supervisor_id: row.supervisor_id,
+          supervisor_name: row.supervisor_name
+        }
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching TB surveys:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+anc.post("/save", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const ashaId = (req as any).user.userId;
+
+    const {
+      survey_id,
+      patient_id,
+      visit_date,
+      existing_conditions,
+      symptoms,
+      risk_factors,
+      bp_systolic,
+      bp_diastolic,
+      sugar_level,
+      on_medication,
+      referral_needed,
+      remarks
+    } = req.body;
+
+    const result = await pg.query(
+      `INSERT INTO general_screening_surveys (
+        survey_id, patient_id, asha_id,
+        visit_date,
+        existing_conditions, symptoms, risk_factors,
+        bp_systolic, bp_diastolic, sugar_level,
+        on_medication, referral_needed, remarks
+      )
+      VALUES (
+        $1,$2,$3,
+        $4,
+        $5,$6,$7,
+        $8,$9,$10,
+        $11,$12,$13
+      )
+      RETURNING *`,
+      [
+        survey_id,
+        patient_id,
+        ashaId,
+        visit_date,
+        existing_conditions,
+        symptoms,
+        risk_factors,
+        bp_systolic,
+        bp_diastolic,
+        sugar_level,
+        on_medication,
+        referral_needed,
+        remarks
+      ]
+    );
+
+    res.status(201).json({
+      message: "General screening survey saved successfully",
+      data: result.rows[0],
+    });
+
+  } catch (err) {
+    console.error("Error saving general screening survey:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================================================
+   2️⃣ GET ALL GENERAL SCREENING SURVEYS FOR A PATIENT
+============================================================== */
+anc.get("/patient/:id", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const { id } = req.params;
+
+    const rows = await pg.query(
+      `SELECT g.*,
+              aw.asha_name,
+              sp.supervisor_name
+       FROM general_screening_surveys g
+       LEFT JOIN asha_workers aw ON g.asha_id = aw.asha_id
+       LEFT JOIN asha_supervisors sp ON aw.supervisor_id = sp.supervisor_id
+       WHERE g.patient_id = $1
+       ORDER BY g.created_at DESC`,
+      [id]
+    );
+
+    res.json({
+      patient_id: id,
+      screenings: rows.rows.map(row => ({
+        ...row,
+        handled_by_asha: {
+          asha_id: row.asha_id,
+          asha_name: row.asha_name
+        },
+        supervisor: {
+          supervisor_id: row.supervisor_id,
+          supervisor_name: row.supervisor_name
+        }
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching general screenings:", err);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});

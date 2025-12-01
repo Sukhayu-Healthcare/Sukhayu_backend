@@ -4,6 +4,8 @@ export interface Medication {
   name: string;
   dose?: string;
   duration: string;
+
+  
 }
 
 export interface Vitals {

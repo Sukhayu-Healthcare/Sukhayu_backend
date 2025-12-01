@@ -11,15 +11,8 @@ export const asha = express.Router();
  */
 asha.post("/register-supervisor", async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      password,
-      phone,
-      village,
-      district,
-      taluka,
-      profilePic,
-    } = req.body;
+    const { name, password, phone, village, district, taluka, profilePic } =
+      req.body;
 
     // Validate required fields
     if (!name || !password || !phone || !village || !district || !taluka) {
@@ -88,108 +81,112 @@ asha.post("/register-supervisor", async (req: Request, res: Response) => {
  * Supervisor registers an ASHA
  * POST /asha/register-asha
  */
-asha.post("/register-asha", verifyToken, async (req: Request, res: Response) => {
-  try {
-    console.log("Supervisor → Register ASHA Worker");
-    const loggedInUserId = (req as any).user; // user_id from JWT
-    const pg = getPgClient();
+asha.post(
+  "/register-asha",
+  verifyToken,
+  async (req: Request, res: Response) => {
+    try {
+      console.log("Supervisor → Register ASHA Worker");
+      const loggedInUserId = (req as any).user; // user_id from JWT
+      const pg = getPgClient();
 
-    // 1️⃣ Check if logged-in user is a SUPERVISOR (in USERS table)
-    const supervisorUser = await pg.query(
-      "SELECT user_role FROM users WHERE user_id = $1",
-      [loggedInUserId]
-    );
+      // 1️⃣ Check if logged-in user is a SUPERVISOR (in USERS table)
+      const supervisorUser = await pg.query(
+        "SELECT user_role FROM users WHERE user_id = $1",
+        [loggedInUserId]
+      );
 
-    if (supervisorUser.rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
+      if (supervisorUser.rows.length === 0) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
-    if (supervisorUser.rows[0].user_role !== "SUPERVISOR") {
-      return res
-        .status(403)
-        .json({ message: "Only Supervisors can register ASHA workers" });
-    }
+      if (supervisorUser.rows[0].user_role !== "SUPERVISOR") {
+        return res
+          .status(403)
+          .json({ message: "Only Supervisors can register ASHA workers" });
+      }
 
-    // 2️⃣ Get supervisor's ASHA ID (from asha_workers)
-    const supervisorAsha = await pg.query(
-      "SELECT asha_id FROM asha_workers WHERE user_id = $1",
-      [loggedInUserId]
-    );
+      // 2️⃣ Get supervisor's ASHA ID (from asha_workers)
+      const supervisorAsha = await pg.query(
+        "SELECT asha_id FROM asha_workers WHERE user_id = $1",
+        [loggedInUserId]
+      );
 
-    if (supervisorAsha.rows.length === 0) {
-      return res.status(404).json({
-        message: "Supervisor ASHA profile not found",
-      });
-    }
+      if (supervisorAsha.rows.length === 0) {
+        return res.status(404).json({
+          message: "Supervisor ASHA profile not found",
+        });
+      }
 
-    const supervisorAshaId = supervisorAsha.rows[0].asha_id;
+      const supervisorAshaId = supervisorAsha.rows[0].asha_id;
 
-    // 3️⃣ Extract request body
-    const {
-      name,
-      password,
-      phone,
-      village,
-      district,
-      taluka,
-      profilePic,
-    } = req.body;
+      // 3️⃣ Extract request body
+      const { name, password, phone, village, district, taluka, profilePic } =
+        req.body;
 
-    if (!name || !password || !phone || !village || !district || !taluka) {
-      return res.status(400).json({
-        message: "All fields except profile pic are required",
-      });
-    }
+      if (!name || !password || !phone || !village || !district || !taluka) {
+        return res.status(400).json({
+          message: "All fields except profile pic are required",
+        });
+      }
 
-    // 4️⃣ Check if phone exists in USERS
-    const existing = await pg.query(
-      "SELECT user_id FROM users WHERE phone = $1",
-      [phone]
-    );
+      // 4️⃣ Check if phone exists in USERS
+      const existing = await pg.query(
+        "SELECT user_id FROM users WHERE phone = $1",
+        [phone]
+      );
 
-    if (existing.rows.length > 0) {
-      return res
-        .status(409)
-        .json({ message: "Phone number already registered" });
-    }
+      if (existing.rows.length > 0) {
+        return res
+          .status(409)
+          .json({ message: "Phone number already registered" });
+      }
 
-    // 5️⃣ Create USER entry (role = ASHA)
-    const hashedPassword = await argon2.hash(password);
+      // 5️⃣ Create USER entry (role = ASHA)
+      const hashedPassword = await argon2.hash(password);
 
-    const userInsert = await pg.query(
-      `INSERT INTO users (user_name, user_password, phone, user_role)
+      const userInsert = await pg.query(
+        `INSERT INTO users (user_name, user_password, phone, user_role)
        VALUES ($1, $2, $3, 'ASHA')
        RETURNING user_id`,
-      [name, hashedPassword, phone]
-    );
+        [name, hashedPassword, phone]
+      );
 
-    const newUserId = userInsert.rows[0].user_id;
+      const newUserId = userInsert.rows[0].user_id;
 
-    // 6️⃣ Create ASHA WORKER entry
-    const ashaInsert = await pg.query(
-      `INSERT INTO asha_workers
+      // 6️⃣ Create ASHA WORKER entry
+      const ashaInsert = await pg.query(
+        `INSERT INTO asha_workers
         (user_id, village, district, taluka, profile_pic, supervisor_id)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING asha_id`,
-      [newUserId, village, district, taluka, profilePic || null, supervisorAshaId]
-    );
+        [
+          newUserId,
+          village,
+          district,
+          taluka,
+          profilePic || null,
+          supervisorAshaId,
+        ]
+      );
 
-    return res.status(201).json({
-      message: "ASHA worker registered successfully",
-      asha: {
-        userId: newUserId,
-        ashaId: ashaInsert.rows[0].asha_id,
-        supervisorId: supervisorAshaId,
-        name,
-        phone,
-        role: "ASHA",
-      },
-    });
-  } catch (error) {
-    console.error("Error in /register-asha:", error);
-    return res.status(500).json({ message: "Internal Server Error" });
+      return res.status(201).json({
+        message: "ASHA worker registered successfully",
+        asha: {
+          userId: newUserId,
+          ashaId: ashaInsert.rows[0].asha_id,
+          supervisorId: supervisorAshaId,
+          name,
+          phone,
+          role: "ASHA",
+        },
+      });
+    } catch (error) {
+      console.error("Error in /register-asha:", error);
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
   }
-});
+);
 
 /**
  * Asha profile
@@ -318,10 +315,10 @@ asha.post(
       const newUserId = userInsert.rows[0].user_id;
 
       // Step 2: Insert into patient table
-     // Step 2: Insert into patient table (without supreme_id first)
-     const gender1 = gender.toString().toUpperCase();
-const patientInsert = await pg.query(
-  `INSERT INTO patient (
+      // Step 2: Insert into patient table (without supreme_id first)
+      const gender1 = gender.toString().toUpperCase();
+      const patientInsert = await pg.query(
+        `INSERT INTO patient (
       user_id,
       gender,
       dob,
@@ -335,39 +332,38 @@ const patientInsert = await pg.query(
    )
    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
    RETURNING patient_id`,
-  [
-    newUserId,
-    gender1,
-    dob ?? null,
-    phone,
-    profile_pic ?? null,
-    village,
-    taluka,
-    district,
-    history ?? null,
-    registeredAshaId
-  ]
-);
+        [
+          newUserId,
+          gender1,
+          dob ?? null,
+          phone,
+          profile_pic ?? null,
+          village,
+          taluka,
+          district,
+          history ?? null,
+          registeredAshaId,
+        ]
+      );
 
-const newPatientId = patientInsert.rows[0].patient_id;
+      const newPatientId = patientInsert.rows[0].patient_id;
 
-// Step 3: Self-assign supreme_id if not provided
-const finalSupremeId = supreme_id ?? newPatientId;
+      // Step 3: Self-assign supreme_id if not provided
+      const finalSupremeId = supreme_id ?? newPatientId;
 
-// Step 4: Update patient to set correct supreme_id
-await pg.query(
-  `UPDATE patient SET supreme_id = $1 WHERE patient_id = $2`,
-  [finalSupremeId, newPatientId]
-);
+      // Step 4: Update patient to set correct supreme_id
+      await pg.query(
+        `UPDATE patient SET supreme_id = $1 WHERE patient_id = $2`,
+        [finalSupremeId, newPatientId]
+      );
 
-// Final Response
-return res.status(201).json({
-  message: "Patient registered successfully by ASHA",
-  user_id: newUserId,
-  patient_id: newPatientId,
-  supreme_id: finalSupremeId
-});
-
+      // Final Response
+      return res.status(201).json({
+        message: "Patient registered successfully by ASHA",
+        user_id: newUserId,
+        patient_id: newPatientId,
+        supreme_id: finalSupremeId,
+      });
 
       return res.status(201).json({
         message: "Patient registered successfully by ASHA",
@@ -620,10 +616,10 @@ asha.put(
 
       // 6️⃣ Update ASHA's name in USERS if provided
       if (asha_name) {
-        await pg.query(
-          `UPDATE users SET user_name = $1 WHERE user_id = $2`,
-          [asha_name, ashaUserId]
-        );
+        await pg.query(`UPDATE users SET user_name = $1 WHERE user_id = $2`, [
+          asha_name,
+          ashaUserId,
+        ]);
       }
 
       // 7️⃣ Return updated ASHA (join users + asha_workers)
