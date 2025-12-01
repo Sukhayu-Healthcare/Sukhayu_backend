@@ -7,7 +7,100 @@ import { getToken, verifyToken } from "../utils/middleware.js";
 export const doctor = express.Router();
 
 /* ============================================================
-   1️⃣ DOCTOR LOGIN
+   🟢 1) DOCTOR REGISTRATION
+============================================================ */
+doctor.post("/register", async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+
+    const {
+      doc_name,
+      doc_password,
+      doc_profile_pic,
+      doc_role,
+      hospital_address,
+      hospital_village,
+      hospital_taluka,
+      hospital_district,
+      hospital_state,
+      doc_phone,
+      doc_speciality,
+      doc_status,
+    } = req.body;
+
+    // Required fields validation
+    if (
+      !doc_name ||
+      !doc_password ||
+      !doc_role ||
+      !hospital_address ||
+      !hospital_village ||
+      !hospital_taluka ||
+      !hospital_district ||
+      !hospital_state ||
+      !doc_phone
+    ) {
+      return res.status(400).json({ message: "Required fields missing" });
+    }
+
+    // Validate role
+    const validRoles = ["CHO", "PHC", "CIVIL"];
+    if (!validRoles.includes(doc_role)) {
+      return res.status(400).json({ message: "Invalid doctor role" });
+    }
+
+    // Validate phone
+    if (doc_phone < 6000000000 || doc_phone > 9999999999) {
+      return res.status(400).json({ message: "Invalid phone number" });
+    }
+
+    const hashedPassword = await argon2.hash(doc_password);
+
+    const query = `
+      INSERT INTO doctors (
+        doc_name, doc_password, doc_profile_pic, doc_role,
+        hospital_address, hospital_village, hospital_taluka,
+        hospital_district, hospital_state,
+        doc_phone, doc_speciality, doc_status
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING doc_id, doc_name, doc_role, doc_phone, doc_status, doc_created_at;
+    `;
+
+    const values = [
+      doc_name,
+      hashedPassword,
+      doc_profile_pic ?? null,
+      doc_role,
+      hospital_address,
+      hospital_village,
+      hospital_taluka,
+      hospital_district,
+      hospital_state,
+      doc_phone,
+      doc_speciality ?? null,
+      doc_status ?? "OFF",
+    ];
+
+    const result = await pg.query(query, values);
+
+    return res.status(201).json({
+      message: "Doctor registered successfully",
+      doctor: result.rows[0],
+    });
+  } catch (err: any) {
+    console.error("Doctor Registration Error:", err);
+
+    if (err.code === "23505") {
+      return res.status(400).json({ message: "Phone number already exists" });
+    }
+
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+/* ============================================================
+   2️⃣ DOCTOR LOGIN
 ============================================================ */
 doctor.post("/login", async (req: Request, res: Response) => {
   try {
@@ -35,6 +128,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
       doctorRow.doc_password,
       password
     );
+
     if (!validPassword)
       return res.status(401).json({ message: "Invalid credentials" });
 
@@ -52,7 +146,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
 });
 
 /* ============================================================
-   2️⃣ GET PATIENT QUEUE (final, valid version)
+   3️⃣ GET QUEUE LIST
 ============================================================ */
 doctor.get("/queue", verifyToken, async (req: Request, res: Response) => {
   try {
@@ -88,13 +182,12 @@ doctor.get("/queue", verifyToken, async (req: Request, res: Response) => {
 });
 
 /* ============================================================
-   3️⃣ ADD PATIENT TO QUEUE
+   4️⃣ ADD PATIENT TO QUEUE
 ============================================================ */
 doctor.post("/queue/add", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
     const doctorId = (req as any).user.userId;
-
     const { patient_id, priority } = req.body;
 
     const result = await pg.query(
@@ -115,7 +208,7 @@ doctor.post("/queue/add", verifyToken, async (req: Request, res: Response) => {
 });
 
 /* ============================================================
-   4️⃣ TAG PATIENT AS EMERGENCY
+   5️⃣ TAG PATIENT AS EMERGENCY
 ============================================================ */
 doctor.put("/queue/emergency/:queue_id", verifyToken, async (req, res) => {
   try {
@@ -124,7 +217,7 @@ doctor.put("/queue/emergency/:queue_id", verifyToken, async (req, res) => {
 
     await pg.query(
       `UPDATE patient_queue 
-       SET tagged_emergency = TRUE, priority='RED'
+       SET tagged_emergency = TRUE, priority = 'RED'
        WHERE queue_id = $1`,
       [queue_id]
     );
@@ -137,7 +230,7 @@ doctor.put("/queue/emergency/:queue_id", verifyToken, async (req, res) => {
 });
 
 /* ============================================================
-   5️⃣ QUEUE STATS
+   6️⃣ QUEUE STATISTICS
 ============================================================ */
 doctor.get("/queue/stats", verifyToken, async (req, res) => {
   try {
@@ -151,15 +244,13 @@ doctor.get("/queue/stats", verifyToken, async (req, res) => {
       [doctorId]
     );
 
-    const orangeCases = queue.rows.filter((x) => x.priority === "ORANGE")
-      .length;
+    const orangeCases = queue.rows.filter((x) => x.priority === "ORANGE").length;
 
     const avgWaitMin = queue.rows.length
       ? Math.round(
           queue.rows.reduce(
             (acc, row) =>
-              acc +
-              (Date.now() - new Date(row.in_time).getTime()) / 60000,
+              acc + (Date.now() - new Date(row.in_time).getTime()) / 60000,
             0
           ) / queue.rows.length
         )
@@ -171,13 +262,13 @@ doctor.get("/queue/stats", verifyToken, async (req, res) => {
       avg_wait_time: avgWaitMin + " min",
     });
   } catch (err) {
-    console.error("Queue stats error:", err);
+    console.error("Stats error:", err);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
 /* ============================================================
-   6️⃣ CONSULTATION WITH MEDICINES
+   7️⃣ CONSULTATION WITH MEDICINES
 ============================================================ */
 doctor.post(
   "/consultation-with-items",
@@ -191,7 +282,7 @@ doctor.post(
     try {
       await pg.query("BEGIN");
 
-      // Mark doctor busy
+      // Doctor busy
       await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`, [
         doctorId,
       ]);
@@ -264,30 +355,26 @@ doctor.post(
 );
 
 /* ============================================================
-   7️⃣ DOCTOR CONSULTATION HISTORY
+   8️⃣ DOCTOR CONSULTATION HISTORY
 ============================================================ */
-doctor.get(
-  "/consultations",
-  verifyToken,
-  async (req: Request, res: Response) => {
-    try {
-      const pg = getPgClient();
-      const doctorId = (req as any).user.userId;
+doctor.get("/consultations", verifyToken, async (req: Request, res: Response) => {
+  try {
+    const pg = getPgClient();
+    const doctorId = (req as any).user.userId;
 
-      const result = await pg.query(
-        `SELECT * FROM consultations 
-         WHERE doc_id=$1 
-         ORDER BY consultation_date DESC`,
-        [doctorId]
-      );
+    const result = await pg.query(
+      `SELECT * FROM consultations 
+       WHERE doc_id=$1 
+       ORDER BY consultation_date DESC`,
+      [doctorId]
+    );
 
-      return res.json({
-        total: result.rows.length,
-        consultations: result.rows,
-      });
-    } catch (error) {
-      console.error("Consultation history error:", error);
-      return res.status(500).json({ message: "Internal Server Error" });
-    }
+    return res.json({
+      total: result.rows.length,
+      consultations: result.rows,
+    });
+  } catch (error) {
+    console.error("History error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
-);
+});
