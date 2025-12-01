@@ -14,3 +14,4 @@ CREATE TABLE doctors (
     doc_status VARCHAR(5) DEFAULT 'OFF' CHECK (doc_status IN ('ON', 'OFF')),
     doc_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
+--add emergnecy in doc_role
