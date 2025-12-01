@@ -319,7 +319,7 @@ asha.post(
 
       // Step 2: Insert into patient table
      // Step 2: Insert into patient table (without supreme_id first)
-     const gender1 = gender.toString().touppercase()
+     const gender1 = gender.toString().toUpperCase();
 const patientInsert = await pg.query(
   `INSERT INTO patient (
       user_id,
