@@ -13,6 +13,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
   try {
     console.log("universal login");
     const { phone, password } = req.body;
+    console.log(phone,password)
 
     if (!phone || !password) {
       return res.status(400).json({
@@ -29,6 +30,7 @@ patient.post("/v2/login", async (req: Request, res: Response) => {
     );
 
     if (result.rows.length === 0) {
+      console.log("user not found")
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -144,7 +146,7 @@ patient.post("/login", async (req: Request, res: Response) => {
   try {
     console.log("patient");
     const { phone, password } = req.body;
-    console.log(phone,password)
+   
 
     if (!phone || !password) {
       return res.status(400).json({
@@ -161,7 +163,7 @@ patient.post("/login", async (req: Request, res: Response) => {
     );
 
     if (userRes.rows.length === 0) {
-      console.log("user not found")
+      
       return res.status(404).json({ message: "user not found" }); // CHANGED
     }
 
