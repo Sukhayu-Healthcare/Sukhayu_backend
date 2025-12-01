@@ -144,6 +144,7 @@ patient.post("/login", async (req: Request, res: Response) => {
   try {
     console.log("patient");
     const { phone, password } = req.body;
+    console.log(phone,password)
 
     if (!phone || !password) {
       return res.status(400).json({
@@ -160,7 +161,8 @@ patient.post("/login", async (req: Request, res: Response) => {
     );
 
     if (userRes.rows.length === 0) {
-      return res.status(404).json({ message: "Patient user not found" }); // CHANGED
+      console.log("user not found")
+      return res.status(404).json({ message: "user not found" }); // CHANGED
     }
 
     const userRow = userRes.rows[0]; // CHANGED
