@@ -8,6 +8,7 @@ export const router = express.Router();
 //for posting screening data
 router.post("/genral", verifyToken, async (req:Request, res:Response) => {
     const ashaID = (req as any).userID; // ASHA from token
+    console.log("Asha ID from token for screening:", ashaID);
     const pg = getPgClient();
 
     const {
