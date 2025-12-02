@@ -378,3 +378,14 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
+doctor.get('/api/doctors', async (req, res) => {
+  try {
+      const pg = getPgClient()
+      const result = await pg.query('SELECT * FROM doctors');
+      res.json(result.rows);
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+});

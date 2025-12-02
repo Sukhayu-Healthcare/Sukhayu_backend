@@ -15,3 +15,10 @@ CREATE TABLE doctors (
     doc_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 --add emergnecy in doc_role
+
+ALTER TABLE doctors
+DROP CONSTRAINT doctors_doc_role_check;
+
+ALTER TABLE doctors
+ADD CONSTRAINT doctors_doc_role_check
+CHECK (doc_role IN ('CHO', 'PHC', 'CIVIL', 'EMERGENCY'));
