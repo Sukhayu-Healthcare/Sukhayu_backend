@@ -47,6 +47,10 @@ CREATE TABLE patient_screening (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
+ALTER TABLE patient_screening
+ADD COLUMN asha_id INTEGER NOT NULL;
+
 CREATE TABLE tb_patients (
     tb_id SERIAL PRIMARY KEY,
 
@@ -182,7 +186,7 @@ CREATE TABLE anc_followup_visit (
 
     -- BP & Weight
     bp_recorded BOOLEAN DEFAULT FALSE,
-    bp_value INT 
+    bp_value INT ,
     weight_kg NUMERIC(5,2),
 
     -- Interventions
@@ -200,3 +204,10 @@ CREATE TABLE anc_followup_visit (
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE anc_followup_visit
+ADD COLUMN asha_id INT NOT NULL;
+
+ALTER TABLE anc_followup_visit
+ADD CONSTRAINT fk_asha
+FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id);

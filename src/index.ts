@@ -6,7 +6,7 @@ import { asha } from "./routes/asha.routes.js";
 import { doctor } from "./routes/doctor.routes.js";
 import cors from "cors";
 import { patient } from "./routes/patient.routes.js";
-import { anc } from "./routes/survey.routes.js";
+import { router } from "./routes/surveyv1.routes.js";
 
 
 
@@ -32,7 +32,7 @@ DBConnection();
 app.use("/api/v1/asha", asha);
 app.use("/api/v1/doctor", doctor);
 app.use("/api/v1/patient", patient);
-app.use("/api/v1/anc",anc);
+app.use("/api/v1/survey",router);
 
 app.get('/',(req,res)=>{
   res.send("whatsup")
