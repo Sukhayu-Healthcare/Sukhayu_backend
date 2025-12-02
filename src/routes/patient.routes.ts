@@ -398,7 +398,7 @@ patient.get("/search", verifyToken, async (req: Request, res: Response) => {
    ========================================================================= */
 patient.get("/all", verifyToken, async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const userId = (req as any).user;
     console.log(1)
     if (!userId) return res.status(401).json({ message: "Invalid token payload" });
 
