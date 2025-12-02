@@ -379,10 +379,11 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
   }
 });
 
-doctor.get('/api/doctors', async (req, res) => {
+doctor.get('/api/doctors', verifyToken ,async (req, res) => {
   try {
+      const docID = (req as any).userId
       const pg = getPgClient()
-      const result = await pg.query('SELECT * FROM doctors');
+      const result = await pg.query('SELECT * FROM doctors WHERE doc_id = $1',[docID]);
       res.json(result.rows);
   } catch (err) {
       console.error(err);
