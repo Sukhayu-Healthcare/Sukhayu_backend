@@ -211,3 +211,78 @@ ADD COLUMN asha_id INT NOT NULL;
 ALTER TABLE anc_followup_visit
 ADD CONSTRAINT fk_asha
 FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id);
+
+ALTER TABLE patient_screening
+ADD CONSTRAINT fk_patient_screening_asha
+FOREIGN KEY (asha_id)
+REFERENCES asha_workers(asha_id)
+ON DELETE SET NULL;
+
+ALTER TABLE tb_patients
+ADD CONSTRAINT fk_tb_patients_asha
+FOREIGN KEY (asha_id)
+REFERENCES asha_workers(asha_id)
+ON DELETE CASCADE;
+
+
+ALTER TABLE anc_followup_visit
+ADD CONSTRAINT fk_anc_followup_asha
+FOREIGN KEY (asha_id)
+REFERENCES asha_workers(asha_id)
+ON DELETE CASCADE;
+
+
+ALTER TABLE anc_first_visit
+ADD COLUMN asha_id INT;
+
+ALTER TABLE anc_first_visit
+ADD CONSTRAINT fk_anc_first_visit_asha
+FOREIGN KEY (asha_id)
+REFERENCES asha_workers(asha_id)
+ON DELETE CASCADE;
+
+CREATE INDEX idx_asha_supervisor ON asha_workers(supervisor_id);
+CREATE INDEX idx_screening_asha ON patient_screening(asha_id);
+CREATE INDEX idx_tb_asha ON tb_patients(asha_id);
+CREATE INDEX idx_anc_followup_asha ON anc_followup_visit(asha_id);
+CREATE INDEX idx_anc_first_asha ON anc_first_visit(asha_id);
+
+ALTER TABLE patient_screening
+ADD COLUMN patient_id INT,
+ADD CONSTRAINT fk_screening_patient
+    FOREIGN KEY (patient_id)
+    REFERENCES patient(patient_id)
+    ON DELETE CASCADE;
+
+ALTER TABLE tb_patients
+ADD COLUMN patient_id INT,
+ADD CONSTRAINT fk_tb_patient
+    FOREIGN KEY (patient_id)
+    REFERENCES patient(patient_id)
+    ON DELETE CASCADE;
+
+
+ALTER TABLE tb_followups
+ADD COLUMN patient_id INT,
+ADD CONSTRAINT fk_tb_followups_patient
+    FOREIGN KEY (patient_id)
+    REFERENCES patient(patient_id)
+    ON DELETE CASCADE;
+
+ALTER TABLE anc_first_visit
+ADD COLUMN patient_id INT,
+ADD CONSTRAINT fk_anc_first_patient
+    FOREIGN KEY (patient_id)
+    REFERENCES patient(patient_id)
+    ON DELETE CASCADE;
+
+ALTER TABLE anc_followup_visit
+ADD COLUMN patient_id INT,
+ADD CONSTRAINT fk_anc_followup_patient
+    FOREIGN KEY (patient_id)
+    REFERENCES patient(patient_id)
+    ON DELETE CASCADE;    
+
+ALTER TABLE tb_followups
+ADD COLUMN asha_id INTEGER NOT NULL
+REFERENCES asha_workers(asha_id);
