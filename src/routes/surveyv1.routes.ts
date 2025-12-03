@@ -682,7 +682,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
     try {
         // STEP 1: Find all ASHA workers under this supervisor
         const ashaResult = await pg.query(
-            `SELECT asha_id FROM asha_workers WHERE supervisor_id = $1`,
+            `SELECT * FROM asha_workers WHERE supervisor_id = $1`,
             [supervisorID]
         );
         console.log("ASHA workers under supervisor:", ashaResult.rows);
