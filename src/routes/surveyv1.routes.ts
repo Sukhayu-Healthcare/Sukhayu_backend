@@ -685,12 +685,15 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
             `SELECT asha_id FROM asha_workers WHERE supervisor_id = $1`,
             [supervisorID]
         );
+        console.log("ASHA workers under supervisor:", ashaResult.rows);
 
         if (ashaResult.rows.length === 0) {
             return res.status(404).json({ message: "No ASHA workers found under this supervisor" });
         }
 
         const ashaIDs = ashaResult.rows.map(r => r.asha_id);
+
+
 
         // STEP 2: Fetch data from requested table
         const dataQuery = `
