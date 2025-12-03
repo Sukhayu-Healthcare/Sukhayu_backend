@@ -655,9 +655,8 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
     }
 });
 
-
 router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) => {
-    const supervisorID = (req as any).user; // Supervisor ID from token
+    const supervisorID = (req as any).user; // Supervisor user_id from token
     const { tableName, date } = req.params;
     const pg = getPgClient();
     console.log(`Supervisor ID: ${supervisorID}, Table: ${tableName}, Date: ${date}`);
@@ -680,22 +679,21 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
     }
 
     try {
-        // STEP 1: Find all ASHA workers under this supervisor
+        // STEP 1: Get ASHA workers under supervisor using user_id
         const ashaResult = await pg.query(
-            `SELECT * FROM asha_workers WHERE supervisor_id = $1`,
+            `SELECT user_id FROM asha_workers WHERE supervisor_id = $1`,
             [supervisorID]
         );
+
         console.log("ASHA workers under supervisor:", ashaResult.rows);
 
         if (ashaResult.rows.length === 0) {
             return res.status(404).json({ message: "No ASHA workers found under this supervisor" });
         }
 
-        const ashaIDs = ashaResult.rows.map(r => r.asha_id);
+        const ashaUserIDs = ashaResult.rows.map(r => r.user_id);
 
-
-
-        // STEP 2: Fetch data from requested table
+        // STEP 2: Fetch data from requested table using ASHA user_id
         const dataQuery = `
             SELECT *
             FROM ${tableName}
@@ -703,13 +701,14 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
               AND DATE(created_at) = $2
             ORDER BY created_at DESC
         `;
-        const dataResult = await pg.query(dataQuery, [ashaIDs, date]);
+
+        const dataResult = await pg.query(dataQuery, [ashaUserIDs, date]);
 
         return res.status(200).json({
             supervisor_id: supervisorID,
             table: tableName,
             date: date,
-            asha_count: ashaIDs.length,
+            asha_count: ashaUserIDs.length,
             count: dataResult.rows.length,
             records: dataResult.rows
         });
