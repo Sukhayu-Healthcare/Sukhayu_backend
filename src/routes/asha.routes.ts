@@ -517,6 +517,7 @@ asha.put(
         asha_district,
         asha_taluka,
         supervisor_id,
+        status
       } = req.body;
 
       const pg = getPgClient();
@@ -552,7 +553,7 @@ asha.put(
 
       // 3️⃣ Load ASHA to update
       const ashaRow = await pg.query(
-        `SELECT asha_id, user_id, supervisor_id 
+        `SELECT asha_id, user_id, supervisor_id, status
          FROM asha_workers 
          WHERE asha_id = $1`,
         [ashaIdToUpdate]
@@ -573,7 +574,8 @@ asha.put(
         !asha_village &&
         !asha_district &&
         !asha_taluka &&
-        !supervisor_id
+        !supervisor_id &&
+        !status
       ) {
         return res
           .status(400)
@@ -698,7 +700,8 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
          a.village,
          a.district,
          a.taluka,
-         a.profile_pic
+         a.profile_pic,
+         a.status
        FROM asha_workers a
        JOIN users u ON a.user_id = u.user_id
        WHERE a.supervisor_id = $1

@@ -17,5 +17,6 @@ CREATE TABLE asha_workers (
         REFERENCES asha_workers(asha_id)
 );
 
-ALTER TABLE asha_workers
-    ADD COLOUMN 
+ALTER TABLE asha_workers 
+ADD COLUMN status VARCHAR(10) NOT NULL DEFAULT 'active'
+CHECK (status IN ('active', 'inactive'));

@@ -93,7 +93,7 @@ router.post("/genral", verifyToken, async (req:Request, res:Response) => {
 
 //for getting screening data
 router.get("/genral", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).userID;
+    const ashaID = (req as any).user;
     const pg = getPgClient();
 
     try {
@@ -127,7 +127,7 @@ router.get("/genral", verifyToken, async (req: Request, res: Response) => {
 
 
 router.post("/tb-first", verifyToken, async (req, res) => {
-    const ashaID = (req as any).userID; // ASHA ID from JWT token
+    const ashaID = (req as any).user; // ASHA ID from JWT token
     console.log("Asha ID for TB first screening:", ashaID);
 
     const pg = getPgClient();
@@ -241,7 +241,7 @@ router.post("/tb-first", verifyToken, async (req, res) => {
 });
 
 router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).userID; // ASHA ID from JWT
+    const ashaID = (req as any).user; // ASHA ID from JWT
     console.log("Fetching TB screenings for ASHA:", ashaID);
 
     const pg = getPgClient();
@@ -298,7 +298,7 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
 
 
 router.post("/tb-followup", verifyToken, async (req, res) => {
-    const ashaID = (req as any).userID;
+    const ashaID = (req as any).user;
     console.log("Asha ID from token for TB follow-up:", ashaID);
     const pg = getPgClient();
 
@@ -379,7 +379,7 @@ router.post("/tb-followup", verifyToken, async (req, res) => {
 
 //for getting tb followup data
 router.get("/tb/followups/:tb_id", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).userID; // Extracted from JWT
+    const ashaID = (req as any).user; // Extracted from JWT
     const tb_id = req.params.tb_id;
     console.log("Asha ID to get TB follow-ups from token:", ashaID);
     const pg = getPgClient();
@@ -419,7 +419,7 @@ router.get("/tb/followups/:tb_id", verifyToken, async (req: Request, res: Respon
 });
 
 router.post("/anc", verifyToken, async (req, res) => {
-    const ashaID = (req as any).userID;
+    const ashaID = (req as any).user;
     console.log("Asha ID from token for ANC visit:", ashaID);
     const pg = getPgClient();
 
@@ -517,7 +517,7 @@ router.post("/anc", verifyToken, async (req, res) => {
 router.get('/anc', verifyToken, async (req: Request, res: Response) => {
     try {
         const pg = getPgClient();
-        const asha_id = (req as any).userID; // JWT provides ASHA ID
+        const asha_id = (req as any).user; // JWT provides ASHA ID
 
         // Optional filter – get ANC for a specific woman
         const womanId = req.query.woman_id as string | undefined;
@@ -562,7 +562,7 @@ router.get('/anc', verifyToken, async (req: Request, res: Response) => {
 
 router.post("/anc-followup", verifyToken, async (req: Request, res: Response) => {
     try {
-        const asha_id = (req as any).userID; // ✅ consistent with other endpoints
+        const asha_id = (req as any).user; // ✅ consistent with other endpoints
         const pg = getPgClient();
         console.log("Asha ID from token for ANC follow-up:", asha_id);
 
@@ -657,7 +657,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
 
 
 router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) => {
-    const supervisorID = (req as any).userID; // Supervisor ID from token
+    const supervisorID = (req as any).user; // Supervisor ID from token
     const { tableName, date } = req.params;
     const pg = getPgClient();
 
