@@ -464,7 +464,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         danger_signs_explained,
         next_visit_date
     } = req.body;
-
+    console.log(`done : ${req.body}`)
     try {
         // --- Check if pregnant woman belongs to the ASHA worker ---
         const checkWoman = await pg.query(
