@@ -585,7 +585,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
         console.log("Asha ID from token for ANC follow-up:", asha_id);
 
         const {
-            pregnant_woman_id,
+            patient_id,
             visit_date,
             visit_number,
             facility_type,
@@ -613,14 +613,14 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
         console.log(`done : ${req.body}`)
 
         // Required validations
-        if (!pregnant_woman_id || !visit_date || !visit_number || !facility_type) {
+        if (!patient_id || !visit_date || !visit_number || !facility_type) {
             return res.status(400).json({ message: "Missing required fields" });
         }
 
         // --- Verify that the pregnant woman belongs to the logged-in ASHA ---
         const checkWoman = await pg.query(
             `SELECT id FROM pregnant_women WHERE id = $1 AND asha_id = $2`,
-            [pregnant_woman_id, asha_id]
+            [patient_id, asha_id]
         );
 
         if (checkWoman.rows.length === 0) {
@@ -651,7 +651,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
         `;
 
         const values = [
-            pregnant_woman_id, asha_id, visit_date, visit_number, facility_type,
+            patient_id, asha_id, visit_date, visit_number, facility_type,
             symptom_vaginal_bleeding, symptom_severe_headache, symptom_swelling_face_hands,
             symptom_fever_chills, symptom_reduced_baby_movement, symptom_severe_abdominal_pain,
             symptom_none, bp_recorded, bp_value, weight_kg,
