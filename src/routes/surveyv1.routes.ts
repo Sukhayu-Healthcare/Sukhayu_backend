@@ -323,6 +323,8 @@ router.post("/tb-followup", verifyToken, async (req, res) => {
         next_followup_date
     } = req.body;
 
+    console.log(`tb_id: ${tb_id}`);
+
     try {
         // --- Verify that this TB patient belongs to the logged-in ASHA worker ---
         const checkPatient = await pg.query(
