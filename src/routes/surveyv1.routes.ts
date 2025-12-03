@@ -660,6 +660,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
     const supervisorID = (req as any).user; // Supervisor ID from token
     const { tableName, date } = req.params;
     const pg = getPgClient();
+    console.log(`Supervisor ID: ${supervisorID}, Table: ${tableName}, Date: ${date}`);
 
     const allowedTables = [
         "patient_screening",
