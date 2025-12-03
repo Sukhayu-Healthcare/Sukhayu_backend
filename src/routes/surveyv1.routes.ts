@@ -610,6 +610,8 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
             next_visit_date
         } = req.body;
 
+        console.log(`done : ${req.body}`)
+
         // Required validations
         if (!pregnant_woman_id || !visit_date || !visit_number || !facility_type) {
             return res.status(400).json({ message: "Missing required fields" });
