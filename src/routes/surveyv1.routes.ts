@@ -296,13 +296,12 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
     }
 });
 
-
 router.post("/tb-followup", verifyToken, async (req, res) => {
     const ashaID = (req as any).user;
     console.log("Asha ID from token for TB follow-up:", ashaID);
     const pg = getPgClient();
 
-    const {
+    let {
         tb_id,
         visit_date,
         phase_of_treatment,
@@ -320,25 +319,41 @@ router.post("/tb-followup", verifyToken, async (req, res) => {
         counselling_given,
         treatment_continued,
         referred_for_sideeffects,
-        next_followup_date
+        next_followup_date,
     } = req.body;
 
-    console.log(`tb_id: ${tb_id}`);
+    console.log(`Incoming tb_id: ${tb_id}`);
 
     try {
-        // --- Verify that this TB patient belongs to the logged-in ASHA worker ---
+        // -------------------------------
+        // 1️⃣ CHECK USING REAL TB ID
+        // -------------------------------
         const checkPatient = await pg.query(
             `SELECT tb_id FROM tb_patients WHERE tb_id = $1 AND asha_id = $2`,
             [tb_id, ashaID]
         );
 
+        // If not found, try if user mistakenly sent patient_id
         if (checkPatient.rows.length === 0) {
-            return res.status(403).json({
-                error: "You are not authorized to add follow-up for this patient"
-            });
+            const reCheck = await pg.query(
+                `SELECT tb_id FROM tb_patients WHERE patient_id = $1 AND asha_id = $2`,
+                [tb_id, ashaID]
+            );
+
+            if (reCheck.rows.length === 0) {
+                return res.status(403).json({
+                    error: "You are not authorized to add follow-up for this patient",
+                });
+            }
+
+            // Replace incoming wrong tb_id with correct one
+            tb_id = reCheck.rows[0].tb_id;
+            console.log("Corrected tb_id from patient_id →", tb_id);
         }
 
-        // --- Insert follow-up record with asha_id ---
+        // -------------------------------
+        // 2️⃣ INSERT FOLLOW-UP
+        // -------------------------------
         const query = `
             INSERT INTO tb_followups (
                 tb_id, asha_id, visit_date, phase_of_treatment, visit_type,
@@ -377,6 +392,7 @@ router.post("/tb-followup", verifyToken, async (req, res) => {
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 
 //for getting tb followup data
