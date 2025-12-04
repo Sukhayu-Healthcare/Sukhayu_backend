@@ -42,6 +42,8 @@ router.post("/genral", verifyToken, async (req:Request, res:Response) => {
         remarks
     } = req.body;
 
+    console.log(`Received screening for patient_id: ${patient_id}`);
+
     if (!patient_id) {
         return res.status(400).json({ error: "patient_id is required" });
     }
@@ -469,7 +471,7 @@ router.post("/anc", verifyToken, async (req, res) => {
     
         // --- Check if pregnant woman belongs to the ASHA worker ---
         const checkWoman = await pg.query(
-            `SELECT patient_id FROM patient WHERE id = $1 AND registered_asha_id = $2`,
+            `SELECT patient_id FROM patient WHERE patient_id = $1 AND registered_asha_id = $2`,
             [womanId, ashaID]
         );
 
