@@ -5,7 +5,7 @@ CREATE TABLE patient_screening (
     screening_date DATE NOT NULL,
     village VARCHAR(100) NOT NULL,
 
-    -- Medical Conditions (Yes / No)
+    -- Medical Conditions
     diabetes BOOLEAN,
     hypertension BOOLEAN,
     heart_disease BOOLEAN,
@@ -23,7 +23,7 @@ CREATE TABLE patient_screening (
     weakness BOOLEAN,
 
     -- Family History
-    family_history BOOLEAN,     -- e.g., Diabetes / BP
+    family_history BOOLEAN,
     past_history TEXT,
 
     -- Lifestyle
@@ -44,12 +44,22 @@ CREATE TABLE patient_screening (
     -- Additional
     remarks TEXT,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign Keys
+    asha_id INTEGER,
+    patient_id INTEGER,
+
+    CONSTRAINT fk_patient_screening_asha
+        FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id) ON DELETE SET NULL,
+
+    CONSTRAINT fk_screening_patient
+        FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
 );
 
-
-ALTER TABLE patient_screening
-ADD COLUMN asha_id INTEGER NOT NULL;
+-- ============================
+-- TB PATIENTS
+-- ============================
 
 CREATE TABLE tb_patients (
     tb_id SERIAL PRIMARY KEY,
@@ -63,7 +73,7 @@ CREATE TABLE tb_patients (
     asha_id INT NOT NULL,
     screening_date DATE NOT NULL,
 
-    -- Symptom Screening (Yes/No)
+    -- Symptoms
     cough_2_weeks BOOLEAN,
     cough_blood BOOLEAN,
     fever_2_weeks BOOLEAN,
@@ -72,7 +82,7 @@ CREATE TABLE tb_patients (
     chest_pain BOOLEAN,
     household_tb BOOLEAN,
 
-    -- Risk factors
+    -- Risk Factors
     previous_tb BOOLEAN,
     close_contact_tb BOOLEAN,
     hiv_positive BOOLEAN,
@@ -85,11 +95,25 @@ CREATE TABLE tb_patients (
     chest_xray BOOLEAN,
     referred_to_higher_center BOOLEAN,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign Keys
+    patient_id INT,
+
+    CONSTRAINT fk_tb_patients_asha
+        FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id) ON DELETE CASCADE,
+
+    CONSTRAINT fk_tb_patient
+        FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
 );
+
+-- ============================
+-- TB FOLLOWUPS
+-- ============================
 
 CREATE TABLE tb_followups (
     followup_id SERIAL PRIMARY KEY,
+
     tb_id INT NOT NULL REFERENCES tb_patients(tb_id) ON DELETE CASCADE,
 
     visit_date DATE NOT NULL,
@@ -116,22 +140,36 @@ CREATE TABLE tb_followups (
     referred_for_sideeffects BOOLEAN,
     next_followup_date DATE,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    -- Foreign Keys
+    patient_id INT,
+    asha_id INT NOT NULL,
+
+    CONSTRAINT fk_tb_followups_patient
+        FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE,
+
+    CONSTRAINT fk_tb_followups_asha
+        FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id) ON DELETE CASCADE
 );
+
+-- ============================
+-- ANC FIRST VISIT
+-- ============================
 
 CREATE TABLE anc_first_visit (
     anc_id SERIAL PRIMARY KEY,
-    pregnant_woman_id INT NOT NULL REFERENCES pregnant_women(id),
+    pregnant_woman_id INT NOT NULL REFERENCES patient(patient_id),
 
     -- ANC Visit
     first_anc_visit_date DATE NOT NULL,
 
     -- Pregnancy Basics
-    lmp_date DATE,                          -- Added
-    edd DATE,                               -- Added
-    gravida INT DEFAULT 0,                  -- Added
-    para INT DEFAULT 0,                     -- Added
-    living_children INT DEFAULT 0,          -- Added
+    lmp_date DATE,
+    edd DATE,
+    gravida INT DEFAULT 0,
+    para INT DEFAULT 0,
+    living_children INT DEFAULT 0,
 
     -- Previous Pregnancy History
     previous_serious_complication BOOLEAN DEFAULT FALSE,
@@ -141,7 +179,7 @@ CREATE TABLE anc_first_visit (
     convulsions BOOLEAN DEFAULT FALSE,
     high_bp_earlier BOOLEAN DEFAULT FALSE,
 
-    -- Known Serious Illness (Multiple selection)
+    -- Known Serious Illness
     illness_diabetes BOOLEAN DEFAULT FALSE,
     illness_high_bp BOOLEAN DEFAULT FALSE,
     illness_heart_disease BOOLEAN DEFAULT FALSE,
@@ -150,43 +188,52 @@ CREATE TABLE anc_first_visit (
     illness_other BOOLEAN DEFAULT FALSE,
 
     -- ANC & Delivery Plan
-    place_of_anc_care VARCHAR(20) NOT NULL 
-        CHECK (place_of_anc_care IN ('Govt', 'Private', 'Not decided')),
-
-    planned_place_delivery VARCHAR(20) NOT NULL 
-        CHECK (planned_place_delivery IN ('Govt', 'Private', 'Home', 'Not decided')),
+    place_of_anc_care VARCHAR(20) NOT NULL CHECK (place_of_anc_care IN ('Govt', 'Private', 'Not decided')),
+    planned_place_delivery VARCHAR(20) NOT NULL CHECK (planned_place_delivery IN ('Govt', 'Private', 'Home', 'Not decided')),
 
     -- Counselling
     danger_signs_explained BOOLEAN DEFAULT FALSE,
 
     next_visit_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Foreign Keys
+    asha_id INT,
+    patient_id INT,
+
+    CONSTRAINT fk_anc_first_visit_asha
+        FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id) ON DELETE CASCADE,
+
+    CONSTRAINT fk_anc_first_patient
+        FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
 );
+
+-- ============================
+-- ANC FOLLOWUP VISIT
+-- ============================
 
 CREATE TABLE anc_followup_visit (
     followup_id SERIAL PRIMARY KEY,
-    pregnant_woman_id INT NOT NULL REFERENCES pregnant_women(id),
+    pregnant_woman_id INT NOT NULL REFERENCES patient(patient_id),
 
-    -- Visit Details
     visit_date DATE NOT NULL,
-    visit_number INT NOT NULL,                -- e.g., 2, 3, 4, ...
+    visit_number INT NOT NULL,
 
     facility_type VARCHAR(20) NOT NULL
         CHECK (facility_type IN ('Govt facility', 'Private', 'Home visit')),
 
-    -- Current Condition Symptoms (Multiple selection)
+    -- Symptoms
     symptom_vaginal_bleeding BOOLEAN DEFAULT FALSE,
     symptom_severe_headache BOOLEAN DEFAULT FALSE,
     symptom_swelling_face_hands BOOLEAN DEFAULT FALSE,
     symptom_fever_chills BOOLEAN DEFAULT FALSE,
     symptom_reduced_baby_movement BOOLEAN DEFAULT FALSE,
     symptom_severe_abdominal_pain BOOLEAN DEFAULT FALSE,
-    symptom_none BOOLEAN DEFAULT FALSE,       -- "None of the above"
+    symptom_none BOOLEAN DEFAULT FALSE,
 
     -- BP & Weight
     bp_recorded BOOLEAN DEFAULT FALSE,
-    bp_value INT ,
+    bp_value INT,
     weight_kg NUMERIC(5,2),
 
     -- Interventions
@@ -199,90 +246,26 @@ CREATE TABLE anc_followup_visit (
     -- Referral
     referral_made BOOLEAN DEFAULT FALSE,
 
-    -- Next Visit
     next_visit_date DATE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- Foreign Keys
+    asha_id INT NOT NULL,
+    patient_id INT,
+
+    CONSTRAINT fk_anc_followup_asha
+        FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id) ON DELETE CASCADE,
+
+    CONSTRAINT fk_anc_followup_patient
+        FOREIGN KEY (patient_id) REFERENCES patient(patient_id) ON DELETE CASCADE
 );
 
-ALTER TABLE anc_followup_visit
-ADD COLUMN asha_id INT NOT NULL;
-
-ALTER TABLE anc_followup_visit
-ADD CONSTRAINT fk_asha
-FOREIGN KEY (asha_id) REFERENCES asha_workers(asha_id);
-
-ALTER TABLE patient_screening
-ADD CONSTRAINT fk_patient_screening_asha
-FOREIGN KEY (asha_id)
-REFERENCES asha_workers(asha_id)
-ON DELETE SET NULL;
-
-ALTER TABLE tb_patients
-ADD CONSTRAINT fk_tb_patients_asha
-FOREIGN KEY (asha_id)
-REFERENCES asha_workers(asha_id)
-ON DELETE CASCADE;
-
-
-ALTER TABLE anc_followup_visit
-ADD CONSTRAINT fk_anc_followup_asha
-FOREIGN KEY (asha_id)
-REFERENCES asha_workers(asha_id)
-ON DELETE CASCADE;
-
-
-ALTER TABLE anc_first_visit
-ADD COLUMN asha_id INT;
-
-ALTER TABLE anc_first_visit
-ADD CONSTRAINT fk_anc_first_visit_asha
-FOREIGN KEY (asha_id)
-REFERENCES asha_workers(asha_id)
-ON DELETE CASCADE;
+-- ============================
+-- INDEXES
+-- ============================
 
 CREATE INDEX idx_asha_supervisor ON asha_workers(supervisor_id);
 CREATE INDEX idx_screening_asha ON patient_screening(asha_id);
 CREATE INDEX idx_tb_asha ON tb_patients(asha_id);
 CREATE INDEX idx_anc_followup_asha ON anc_followup_visit(asha_id);
 CREATE INDEX idx_anc_first_asha ON anc_first_visit(asha_id);
-
-ALTER TABLE patient_screening
-ADD COLUMN patient_id INT,
-ADD CONSTRAINT fk_screening_patient
-    FOREIGN KEY (patient_id)
-    REFERENCES patient(patient_id)
-    ON DELETE CASCADE;
-
-ALTER TABLE tb_patients
-ADD COLUMN patient_id INT,
-ADD CONSTRAINT fk_tb_patient
-    FOREIGN KEY (patient_id)
-    REFERENCES patient(patient_id)
-    ON DELETE CASCADE;
-
-
-ALTER TABLE tb_followups
-ADD COLUMN patient_id INT,
-ADD CONSTRAINT fk_tb_followups_patient
-    FOREIGN KEY (patient_id)
-    REFERENCES patient(patient_id)
-    ON DELETE CASCADE;
-
-ALTER TABLE anc_first_visit
-ADD COLUMN patient_id INT,
-ADD CONSTRAINT fk_anc_first_patient
-    FOREIGN KEY (patient_id)
-    REFERENCES patient(patient_id)
-    ON DELETE CASCADE;
-
-ALTER TABLE anc_followup_visit
-ADD COLUMN patient_id INT,
-ADD CONSTRAINT fk_anc_followup_patient
-    FOREIGN KEY (patient_id)
-    REFERENCES patient(patient_id)
-    ON DELETE CASCADE;    
-
-ALTER TABLE tb_followups
-ADD COLUMN asha_id INTEGER NOT NULL
-REFERENCES asha_workers(asha_id);

@@ -443,15 +443,15 @@ router.post("/anc", verifyToken, async (req, res) => {
     const pg = getPgClient();
     
     const {
-        woman_id,
-        first_anc_visit_date,
-        lmp_date,
-        edd,
+        womanId,
+        firstAncDate,
+        lmpDate,
+        eddDate,
         gravida,
         para,
-        living_children,
-        previous_serious_complication,
-        severe_bleeding_now,
+        livingChildren,
+        previousSeriousComplication,
+        severeBleedingNow,
         convulsions,
         high_bp_earlier,
         illness_diabetes,
@@ -469,8 +469,8 @@ router.post("/anc", verifyToken, async (req, res) => {
     
         // --- Check if pregnant woman belongs to the ASHA worker ---
         const checkWoman = await pg.query(
-            `SELECT id FROM pregnant_women WHERE id = $1 AND asha_id = $2`,
-            [woman_id, ashaID]
+            `SELECT patient_id FROM patient WHERE id = $1 AND registered_asha_id = $2`,
+            [womanId, ashaID]
         );
 
         if (checkWoman.rows.length === 0) {
@@ -483,7 +483,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         const query = `
             INSERT INTO anc_first_visit (
                 pregnant_woman_id, first_anc_visit_date,
-                lmp_date, edd, gravida, para, living_children,
+                lmp_date, edd_date, gravida, para, livingChildren,
                 previous_serious_complication,
                 severe_bleeding_now, convulsions, high_bp_earlier,
                 illness_diabetes, illness_high_bp, illness_heart_disease,
@@ -507,10 +507,10 @@ router.post("/anc", verifyToken, async (req, res) => {
         `;
 
         const values = [
-            woman_id, first_anc_visit_date,
-            lmp_date, edd, gravida, para, living_children,
-            previous_serious_complication,
-            severe_bleeding_now, convulsions, high_bp_earlier,
+            womanId, firstAncDate,
+            lmpDate, eddDate, gravida, para, livingChildren,
+            previousSeriousComplication,
+            severeBleedingNow, convulsions, high_bp_earlier,
             illness_diabetes, illness_high_bp, illness_heart_disease,
             illness_tb, illness_hiv, illness_other,
             place_of_anc_care, planned_place_delivery,
@@ -620,7 +620,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
 
         // --- Verify that the pregnant woman belongs to the logged-in ASHA ---
         const checkWoman = await pg.query(
-            `SELECT id FROM pregnant_women WHERE id = $1 AND asha_id = $2`,
+            `SELECT patient_id FROM patient WHERE id = $1 AND registered_asha_id = $2`,
             [patient_id, asha_id]
         );
 
