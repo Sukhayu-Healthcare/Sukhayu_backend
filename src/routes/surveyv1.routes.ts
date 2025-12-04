@@ -446,14 +446,14 @@ router.post("/anc", verifyToken, async (req, res) => {
     
     const {
         patient_id,
-        firstAncDate,
-        lmpDate,
-        eddDate,
+        first_anc_date,
+        lmp_date,
+        edd,
         gravida,
         para,
-        livingChildren,
-        previousSeriousComplication,
-        severeBleedingNow,
+        living_children,
+        previous_serious_complication,
+        severe_bleeding_now,
         convulsions,
         high_bp_earlier,
         illness_diabetes,
@@ -509,10 +509,10 @@ router.post("/anc", verifyToken, async (req, res) => {
         `;
 
         const values = [
-            patient_id, firstAncDate,
-            lmpDate, eddDate, gravida, para, livingChildren,
-            previousSeriousComplication,
-            severeBleedingNow, convulsions, high_bp_earlier,
+            patient_id, first_anc_date,
+            lmp_date, edd, gravida, para, living_children,
+            previous_serious_complication,
+            severe_bleeding_now, convulsions, high_bp_earlier,
             illness_diabetes, illness_high_bp, illness_heart_disease,
             illness_tb, illness_hiv, illness_other,
             place_of_anc_care, planned_place_delivery,
