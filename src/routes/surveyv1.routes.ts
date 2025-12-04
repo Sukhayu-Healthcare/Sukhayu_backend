@@ -485,7 +485,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         const query = `
             INSERT INTO anc_first_visit (
                 pregnant_woman_id, first_anc_visit_date,
-                lmp_date, edd_date, gravida, para, livingChildren,
+                lmp_date, edd, gravida, para, livingChildren,
                 previous_serious_complication,
                 severe_bleeding_now, convulsions, high_bp_earlier,
                 illness_diabetes, illness_high_bp, illness_heart_disease,
