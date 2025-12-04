@@ -437,10 +437,11 @@ router.get("/tb/followups/:tb_id", verifyToken, async (req: Request, res: Respon
 });
 
 router.post("/anc", verifyToken, async (req, res) => {
+    try {
     const ashaID = (req as any).user;
     console.log("Asha ID from token for ANC visit:", ashaID);
     const pg = getPgClient();
-
+    
     const {
         pregnant_woman_id,
         first_anc_visit_date,
@@ -465,7 +466,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         next_visit_date
     } = req.body;
     console.log(`done : ${req.body}`)
-    try {
+    
         // --- Check if pregnant woman belongs to the ASHA worker ---
         const checkWoman = await pg.query(
             `SELECT id FROM pregnant_women WHERE id = $1 AND asha_id = $2`,
