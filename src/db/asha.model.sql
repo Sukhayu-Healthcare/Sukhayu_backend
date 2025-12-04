@@ -20,3 +20,10 @@ CREATE TABLE asha_workers (
 ALTER TABLE asha_workers 
 ADD COLUMN status VARCHAR(10) NOT NULL DEFAULT 'active'
 CHECK (status IN ('active', 'inactive'));
+
+ALTER TABLE users
+DROP CONSTRAINT users_user_role_check;
+
+ALTER TABLE users
+ADD CONSTRAINT users_user_role_check
+CHECK (user_role IN ('ASHA', 'SUPERVISOR', 'PATIENT', 'LHV'));
