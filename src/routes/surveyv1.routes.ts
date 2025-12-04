@@ -446,7 +446,7 @@ router.post("/anc", verifyToken, async (req, res) => {
     
     const {
         patient_id,
-        first_anc_date,
+        first_anc_visit_date,
         lmp_date,
         edd,
         gravida,
@@ -509,7 +509,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         `;
 
         const values = [
-            patient_id, first_anc_date,
+            patient_id, first_anc_visit_date,
             lmp_date, edd, gravida, para, living_children,
             previous_serious_complication,
             severe_bleeding_now, convulsions, high_bp_earlier,
