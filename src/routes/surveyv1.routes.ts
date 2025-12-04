@@ -485,14 +485,14 @@ router.post("/anc", verifyToken, async (req, res) => {
         const query = `
             INSERT INTO anc_first_visit (
                 pregnant_woman_id, first_anc_visit_date,
-                lmp_date, edd, gravida, para, livingChildren,
+                lmp_date, edd, gravida, para, living_children,
                 previous_serious_complication,
                 severe_bleeding_now, convulsions, high_bp_earlier,
                 illness_diabetes, illness_high_bp, illness_heart_disease,
                 illness_tb, illness_hiv, illness_other,
                 place_of_anc_care, planned_place_delivery,
                 danger_signs_explained, next_visit_date,
-                asha_id
+                asha_id,patient_id
             )
             VALUES (
                 $1, $2,
@@ -503,7 +503,7 @@ router.post("/anc", verifyToken, async (req, res) => {
                 $15, $16, $17,
                 $18, $19,
                 $20, $21,
-                $22
+                $22, $23
             )
             RETURNING anc_id
         `;
@@ -517,7 +517,7 @@ router.post("/anc", verifyToken, async (req, res) => {
             illness_tb, illness_hiv, illness_other,
             place_of_anc_care, planned_place_delivery,
             danger_signs_explained, next_visit_date,
-            ashaID
+            ashaID,patient_id
         ];
 
         const result = await pg.query(query, values);
