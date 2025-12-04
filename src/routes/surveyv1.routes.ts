@@ -445,7 +445,7 @@ router.post("/anc", verifyToken, async (req, res) => {
     const pg = getPgClient();
     
     const {
-        womanId,
+        patient_id,
         firstAncDate,
         lmpDate,
         eddDate,
@@ -472,7 +472,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         // --- Check if pregnant woman belongs to the ASHA worker ---
         const checkWoman = await pg.query(
             `SELECT patient_id FROM patient WHERE patient_id = $1 AND registered_asha_id = $2`,
-            [womanId, ashaID]
+            [patient_id, ashaID]
         );
 
         if (checkWoman.rows.length === 0) {
@@ -509,7 +509,7 @@ router.post("/anc", verifyToken, async (req, res) => {
         `;
 
         const values = [
-            womanId, firstAncDate,
+            patient_id, firstAncDate,
             lmpDate, eddDate, gravida, para, livingChildren,
             previousSeriousComplication,
             severeBleedingNow, convulsions, high_bp_earlier,
