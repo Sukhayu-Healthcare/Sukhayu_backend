@@ -1,7 +1,8 @@
 import express from "express";
 import argon2 from "argon2";
 import { getPgClient } from "../config/postgress.js";
-import { getToken } from "../utils/middleware.js";
+import { getToken, verifyToken } from "../utils/middleware.js";
+import { sendFCM } from "./notification/fcm.js";
 
 const lhv = express.Router();
 
@@ -129,6 +130,71 @@ lhv.post("/login", async (req, res) => {
     } catch (err) {
       console.error("LHV Login Error:", err);
       res.status(500).json({ message: "Server error" });
+    }
+  });
+
+  lhv.post("/send-to-supervisor",verifyToken, async (req, res) => {
+    const { notice_id } = req.body;
+    const lhv_user_id = (req as any).user; // from JWT
+    const pool = getPgClient();
+  
+    try {
+      // 1. Get village of LHV
+      const lhvRes = await pool.query(
+        "SELECT village FROM lhv_details WHERE user_id = $1",
+        [lhv_user_id]
+      );
+      const village = lhvRes.rows[0].village;
+  
+      // 2. Get supervisors in same village
+      const supRes = await pool.query(
+        `SELECT u.user_id, u.user_name
+         FROM users u
+         JOIN supervisor_details s ON u.user_id = s.user_id
+         WHERE s.village = $1 AND u.user_role = 'SUPERVISOR'`,
+        [village]
+      );
+  
+      if (supRes.rows.length === 0)
+        return res.json({ success: false, message: "No supervisors found in village" });
+  
+      const supervisors = supRes.rows;
+  
+      // 3. Send notifications
+      for (let s of supervisors) {
+        const tokenRes = await pool.query(
+          "SELECT fcm_token FROM device_tokens WHERE user_id = $1",
+          [s.user_id]
+        );
+  
+        if (tokenRes.rows.length === 0) continue;
+  
+        const token = tokenRes.rows[0].fcm_token;
+  
+        // 4. Insert notification record
+        await pool.query(
+          `INSERT INTO notifications (notice_id, receiver_user_id, fcm_token)
+           VALUES ($1, $2, $3)`,
+          [notice_id, s.user_id, token]
+        );
+  
+        // 5. Send FCM
+        const noticeInfo = await pool.query(
+          "SELECT title, body FROM notices WHERE notice_id = $1",
+          [notice_id]
+        );
+  
+        await sendFCM(token, noticeInfo.rows[0].title, noticeInfo.rows[0].body);
+      }
+  
+      res.json({
+        success: true,
+        message: "Notification sent to all supervisors!"
+      });
+  
+    } catch (err) {
+      console.log(err);
+      res.status(500).json({ success: false, message: "Server error" });
     }
   });
 

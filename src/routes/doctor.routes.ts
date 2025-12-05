@@ -390,3 +390,16 @@ doctor.get('/api/doctors', verifyToken ,async (req, res) => {
       res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+doctor.get('patient/:id', verifyToken ,async (req, res) => {
+  try {
+      const patientID = req.params.id;
+      const pg = getPgClient()
+      const result = await pg.query('SELECT * FROM patients WHERE patient_id = $1',[patientID]);
+      res.json(result.rows);
+  } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'Internal server error' });
+  }
+}
+)

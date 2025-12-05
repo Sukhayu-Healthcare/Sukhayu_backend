@@ -8,6 +8,7 @@ import cors from "cors";
 import { patient } from "./routes/patient.routes.js";
 import { router } from "./routes/surveyv1.routes.js";
 import lhv from "./routes/lhv.model.js";
+import noti from "./routes/notice.routes.js";
 
 
 
@@ -35,6 +36,7 @@ app.use("/api/v1/doctor", doctor);
 app.use("/api/v1/patient", patient);
 app.use("/api/v1/survey",router);
 app.use('/api/v1/lhv', lhv);
+app.use('/api/v1/notice', noti);
 
 app.get('/',(req,res)=>{
   res.send("whatsup")

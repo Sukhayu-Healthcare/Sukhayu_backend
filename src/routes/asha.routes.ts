@@ -2,6 +2,7 @@ import express, { type Request, type Response } from "express";
 import { getPgClient } from "../config/postgress.js";
 import * as argon2 from "argon2";
 import { getToken, verifyToken } from "../utils/middleware.js";
+import { sendFCM } from "./notification/fcm.js";
 
 export const asha = express.Router();
 
@@ -713,5 +714,111 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error in /all-ashas:", error);
     return res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
+
+// -----------------------------------------
+
+asha.post("/supervisor/send-to-asha",verifyToken, async (req, res) => {
+  const {  notice_id } = req.body;
+  const supervisor_user_id = (req as any).user; // from JWT
+  const pool = getPgClient();
+
+  try {
+    // 1. Get village of Supervisor
+    const supRes = await pool.query(
+      "SELECT village FROM supervisor_details WHERE user_id = $1",
+      [supervisor_user_id]
+    );
+
+    const village = supRes.rows[0].village;
+
+    // 2. Get all ASHA workers of same village
+    const ashaRes = await pool.query(
+      "SELECT user_id FROM asha_workers WHERE village = $1",
+      [village]
+    );
+
+    // 3. Send notifications
+    for (let a of ashaRes.rows) {
+      const tokenRes = await pool.query(
+        "SELECT fcm_token FROM device_tokens WHERE user_id = $1",
+        [a.user_id]
+      );
+
+      if (tokenRes.rows.length === 0) continue;
+      const token = tokenRes.rows[0].fcm_token;
+
+      await pool.query(
+        "INSERT INTO notifications (notice_id, receiver_user_id, fcm_token) VALUES ($1, $2, $3)",
+        [notice_id, a.user_id, token]
+      );
+
+      const noticeInfo = await pool.query(
+        "SELECT title, body FROM notices WHERE notice_id = $1",
+        [notice_id]
+      );
+
+      await sendFCM(token, noticeInfo.rows[0].title, noticeInfo.rows[0].body);
+    }
+
+    res.json({ success: true, message: "Notified all ASHA workers" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+
+asha.post("/asha/send-to-patients",verifyToken, async (req, res) => {
+  const {  notice_id } = req.body;
+  const pool = getPgClient();
+  const asha_user_id = (req as any).user; // from JWT
+
+  try {
+    // 1. Get ASHA village
+    const ashaRes = await pool.query(
+      "SELECT village FROM asha_workers WHERE user_id = $1",
+      [asha_user_id]
+    );
+    const village = ashaRes.rows[0].village;
+
+    // 2. Patients of same village
+    const patientsRes = await pool.query(
+      "SELECT user_id FROM users WHERE user_role = 'PATIENT' AND village = $1",
+      [village]
+    );
+
+    for (let p of patientsRes.rows) {
+      const tokenRes = await pool.query(
+        "SELECT fcm_token FROM device_tokens WHERE user_id = $1",
+        [p.user_id]
+      );
+
+      if (tokenRes.rows.length === 0) continue;
+
+      const token = tokenRes.rows[0].fcm_token;
+
+      await pool.query(
+        `INSERT INTO notifications (notice_id, receiver_user_id, fcm_token)
+         VALUES ($1, $2, $3)`,
+        [notice_id, p.user_id, token]
+      );
+
+      const noticeInfo = await pool.query(
+        "SELECT title, body FROM notices WHERE notice_id = $1",
+        [notice_id]
+      );
+
+      await sendFCM(token, noticeInfo.rows[0].title, noticeInfo.rows[0].body);
+    }
+
+    res.json({ success: true, message: "Patients notified!" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
