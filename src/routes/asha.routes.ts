@@ -721,7 +721,7 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
 // -----------------------------------------
 
 asha.post("/supervisor/send-to-asha",verifyToken, async (req, res) => {
-  const {  notice_id } = req.body;
+  const { notice_id } = req.body;
   const supervisor_user_id = (req as any).user; // from JWT
   const pool = getPgClient();
 

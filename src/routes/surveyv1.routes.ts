@@ -692,7 +692,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
     const supervisorID = (req as any).user;
     const { tableName, date } = req.params;
     const pg = getPgClient();
-
+    console.log(`Supervisor ID: ${supervisorID}, Table: ${tableName}, Date: ${date}`);
     const allowedTables = [
         "patient_screening",
         "tb_patients",
@@ -718,7 +718,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
             return res.status(404).json({ message: "Supervisor not found in ASHA table" });
 
         const supervisorAshaID = supervisorAsha.rows[0].asha_id;
-
+        console.log("Supervisor's ASHA ID:", supervisorAshaID);
         // 2️⃣ Get ASHA workers under this supervisor
         const ashaResult = await pg.query(
             `SELECT user_id FROM asha_workers WHERE supervisor_id = $1`,
@@ -726,6 +726,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
         );
 
         const ashaUserIDs = ashaResult.rows.map(r => r.user_id);
+        console.log("ASHA User IDs under supervisor:", ashaUserIDs);
 
         if (ashaUserIDs.length === 0)
             return res.status(404).json({ message: "No ASHA workers under this supervisor" });
