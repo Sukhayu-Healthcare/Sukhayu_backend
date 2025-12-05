@@ -617,7 +617,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
             next_visit_date
         } = req.body;
 
-        console.log(`done : ${req.body}`)
+        console.log(req.body);
 
         // Required validations
         if (!patient_id || !visit_date || !visit_number || !facility_type) {

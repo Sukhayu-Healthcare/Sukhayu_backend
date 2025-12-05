@@ -269,3 +269,18 @@ CREATE INDEX idx_screening_asha ON patient_screening(asha_id);
 CREATE INDEX idx_tb_asha ON tb_patients(asha_id);
 CREATE INDEX idx_anc_followup_asha ON anc_followup_visit(asha_id);
 CREATE INDEX idx_anc_first_asha ON anc_first_visit(asha_id);
+
+
+ALTER TABLE anc_first_visit
+    DROP CONSTRAINT anc_first_visit_place_of_anc_care_check;
+
+ALTER TABLE anc_first_visit
+    ADD CONSTRAINT anc_first_visit_place_of_anc_care_check
+    CHECK (LOWER(place_of_anc_care) IN ('govt', 'private', 'not decided'));
+
+ALTER TABLE anc_first_visit
+DROP CONSTRAINT anc_first_visit_planned_place_delivery_check;
+
+ALTER TABLE anc_first_visit
+ADD CONSTRAINT anc_first_visit_planned_place_delivery_check
+CHECK (LOWER(planned_place_delivery) IN ('govt', 'private', 'home', 'not decided'));
