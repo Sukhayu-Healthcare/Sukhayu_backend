@@ -707,11 +707,20 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
 
     try {
         // STEP 1: Get ASHA workers under supervisor using user_id
-        const ashaResult = await pg.query(
-            `SELECT user_id FROM asha_workers WHERE supervisor_id = $1`,
+        const superAsha = await pg.query(
+            `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
             [supervisorID]
         );
 
+        if (superAsha.rows.length === 0) {
+            return res.status(404).json({ message: "No ASHA workers found under this supervisor" });
+        }
+
+        const ashaIDs = superAsha.rows.map(r => r.asha_id);
+        const ashaResult = await pg.query(
+            `SELECT user_id FROM users WHERE supervisor_id = $1`,
+            [ashaIDs]
+        );
         console.log("ASHA workers under supervisor:", ashaResult.rows);
 
         if (ashaResult.rows.length === 0) {
