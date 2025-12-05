@@ -681,12 +681,10 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
         });
     }
 });
-
 router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) => {
-    const supervisorID = (req as any).user; // Supervisor user_id from token
+    const supervisorID = (req as any).user;
     const { tableName, date } = req.params;
     const pg = getPgClient();
-    console.log(`Supervisor ID: ${supervisorID}, Table: ${tableName}, Date: ${date}`);
 
     const allowedTables = [
         "patient_screening",
@@ -695,41 +693,37 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
         "anc_first_visit",
         "anc_followup_visit"
     ];
-
-    if (!tableName) return res.status(400).json({ error: "Table name is required" });
-    if (!allowedTables.includes(tableName)) return res.status(400).json({ error: "Invalid table name" });
-
-    // Validate date format YYYY-MM-DD
     //@ts-ignore
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ error: "Invalid date format. Use YYYY-MM-DD" });
-    }
+    if (!allowedTables.includes(tableName))
+        return res.status(400).json({ error: "Invalid table name" });
+    //@ts-ignore
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+        return res.status(400).json({ error: "Invalid date format" });
 
     try {
-        // STEP 1: Get ASHA workers under supervisor using user_id
-        const superAsha = await pg.query(
+        // 1️⃣ Get the supervisor’s ASHA ID
+        const supervisorAsha = await pg.query(
             `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
             [supervisorID]
         );
 
-        if (superAsha.rows.length === 0) {
-            return res.status(404).json({ message: "No ASHA workers found under this supervisor" });
-        }
+        if (supervisorAsha.rows.length === 0)
+            return res.status(404).json({ message: "Supervisor not found in ASHA table" });
 
-        const ashaIDs = superAsha.rows.map(r => r.asha_id);
+        const supervisorAshaID = supervisorAsha.rows[0].asha_id;
+
+        // 2️⃣ Get ASHA workers under this supervisor
         const ashaResult = await pg.query(
             `SELECT user_id FROM asha_workers WHERE supervisor_id = $1`,
-            [ashaIDs]
+            [supervisorAshaID]
         );
-        console.log("ASHA workers under supervisor:", ashaResult.rows);
-
-        if (ashaResult.rows.length === 0) {
-            return res.status(404).json({ message: "No ASHA workers found under this supervisor" });
-        }
 
         const ashaUserIDs = ashaResult.rows.map(r => r.user_id);
 
-        // STEP 2: Fetch data from requested table using ASHA user_id
+        if (ashaUserIDs.length === 0)
+            return res.status(404).json({ message: "No ASHA workers under this supervisor" });
+
+        // 3️⃣ Fetch data from the requested table
         const dataQuery = `
             SELECT *
             FROM ${tableName}
@@ -749,9 +743,8 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
             records: dataResult.rows
         });
 
-    } catch (error) {
-        console.error("Supervisor fetch error:", error);
+    } catch (err) {
+        console.error("Supervisor fetch error:", err);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
-
