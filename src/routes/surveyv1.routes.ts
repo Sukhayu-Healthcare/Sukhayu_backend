@@ -2,7 +2,6 @@ import type { Request, Response } from "express";
 import { verifyToken } from "../utils/middleware.js";
 import express from "express";
 import { getPgClient } from "../config/postgress.js";
-import { table } from "console";
 export const router = express.Router();
 
 //for posting screening data
@@ -725,7 +724,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
             [supervisorAshaID]
         );
 
-        const ashaUserIDs = ashaResult.rows.map(r => r.user_id);
+        const ashaUserIDs = ashaResult.rows.map(r => r.asha_id);
         console.log("ASHA User IDs under supervisor:", ashaUserIDs);
 
         if (ashaUserIDs.length === 0)

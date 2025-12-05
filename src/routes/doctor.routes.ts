@@ -360,7 +360,9 @@ doctor.post(
 doctor.get("/consultations", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    const doctorId = (req as any).user;
+
+    console.log("Doctor ID:", doctorId);
 
     const result = await pg.query(
       `SELECT * FROM consultations 
