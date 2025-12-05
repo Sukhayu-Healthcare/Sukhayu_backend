@@ -187,7 +187,12 @@ router.post("/tb-first", verifyToken, async (req, res) => {
             finalPatientId = patientResult.rows[0].patient_id;
         }
 
-        const asha_id = pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID])
+        const ashaResult = await pg.query(
+            "SELECT asha_id FROM asha_workers WHERE user_id = $1",
+            [userID]
+        );
+        
+        const asha_id = ashaResult.rows[0]?.asha_id;
 
         // ---------------------------------------------------
         // (B) Insert TB screening record
