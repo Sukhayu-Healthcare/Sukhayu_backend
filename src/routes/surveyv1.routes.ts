@@ -129,8 +129,8 @@ router.get("/genral", verifyToken, async (req: Request, res: Response) => {
 
 
 router.post("/tb-first", verifyToken, async (req, res) => {
-    const ashaID = (req as any).user; // ASHA ID from JWT token
-    console.log("Asha ID for TB first screening:", ashaID);
+    const userID = (req as any).user; // ASHA ID from JWT token
+    console.log("userID for TB first screening:", userID);
 
     const pg = getPgClient();
     
@@ -187,6 +187,8 @@ router.post("/tb-first", verifyToken, async (req, res) => {
             finalPatientId = patientResult.rows[0].patient_id;
         }
 
+        const asha_id = pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID])
+
         // ---------------------------------------------------
         // (B) Insert TB screening record
         // ---------------------------------------------------
@@ -216,7 +218,7 @@ router.post("/tb-first", verifyToken, async (req, res) => {
         const tbValues = [
             finalPatientId,
             patient_name, age, gender, mobile, address,
-            ashaID, screening_date,
+            asha_id, screening_date,
             cough_2_weeks, cough_blood, fever_2_weeks, night_sweats,
             weight_loss, chest_pain, household_tb,
             previous_tb, close_contact_tb, hiv_positive, diabetes,
