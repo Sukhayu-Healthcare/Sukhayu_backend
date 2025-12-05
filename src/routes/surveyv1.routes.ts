@@ -718,7 +718,7 @@ router.get("/supervisor/data/:tableName/:date", verifyToken, async (req, res) =>
 
         const ashaIDs = superAsha.rows.map(r => r.asha_id);
         const ashaResult = await pg.query(
-            `SELECT user_id FROM users WHERE supervisor_id = $1`,
+            `SELECT user_id FROM asha_workers WHERE supervisor_id = $1`,
             [ashaIDs]
         );
         console.log("ASHA workers under supervisor:", ashaResult.rows);
