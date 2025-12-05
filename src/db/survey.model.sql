@@ -284,3 +284,20 @@ DROP CONSTRAINT anc_first_visit_planned_place_delivery_check;
 ALTER TABLE anc_first_visit
 ADD CONSTRAINT anc_first_visit_planned_place_delivery_check
 CHECK (LOWER(planned_place_delivery) IN ('govt', 'private', 'home', 'not decided'));
+
+ALTER TABLE anc_followup_visit
+DROP CONSTRAINT anc_followup_visit_facility_type_check;
+
+ALTER TABLE anc_followup_visit
+ADD CONSTRAINT anc_followup_visit_facility_type_check
+CHECK (
+    LOWER(facility_type) IN ('govt', 'private', 'home', 'not decided')
+);
+
+
+ALTER TABLE anc_followup_visit
+DROP CONSTRAINT anc_followup_visit_tt_td_dose_check;
+
+ALTER TABLE anc_followup_visit
+ADD CONSTRAINT anc_followup_visit_tt_td_dose_check
+CHECK (tt_td_dose IN ('First', 'Second', 'Booster', 'None'));
