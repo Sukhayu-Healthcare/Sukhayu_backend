@@ -626,7 +626,7 @@ router.post("/anc-followup", verifyToken, async (req: Request, res: Response) =>
 
         // --- Verify that the pregnant woman belongs to the logged-in ASHA ---
         const checkWoman = await pg.query(
-            `SELECT patient_id FROM patient WHERE id = $1 AND registered_asha_id = $2`,
+            `SELECT patient_id FROM patient WHERE patient_id = $1 AND registered_asha_id = $2`,
             [patient_id, asha_id]
         );
 
