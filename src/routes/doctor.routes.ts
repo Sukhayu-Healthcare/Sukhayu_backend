@@ -366,7 +366,7 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
 
     const result = await pg.query(
       `SELECT * FROM consultations 
-       WHERE doc_id=$1 
+       WHERE doctor_id=$1 
        ORDER BY consultation_date DESC`,
       [doctorId]
     );
