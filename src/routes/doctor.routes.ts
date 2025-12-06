@@ -290,7 +290,7 @@ doctor.post(
       // Move from queue
       await pg.query(
         `UPDATE patient_queue SET status='IN_CONSULTATION'
-         WHERE patient_id=$1 AND doc_id=$2 AND status='WAITING'`,
+         WHERE patient_id=$1 AND doctor_id=$2 AND status='WAITING'`,
         [patient_id, doctorId]
       );
 
