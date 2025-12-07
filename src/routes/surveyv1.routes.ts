@@ -6,9 +6,14 @@ export const router = express.Router();
 
 //for posting screening data
 router.post("/genral", verifyToken, async (req:Request, res:Response) => {
-    const ashaID = (req as any).user; // ASHA from token
-    console.log("Asha ID from token for screening:", ashaID);
+    const userID = (req as any).user; // ASHA from token
+    console.log("Asha ID from token for screening:", userID);
     const pg = getPgClient();
+
+    const ashaID = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID])
+    if ((ashaID).rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
 
     const {
         patient_id,  // <-- NEW (must be passed from client)
@@ -94,8 +99,14 @@ router.post("/genral", verifyToken, async (req:Request, res:Response) => {
 
 //for getting screening data
 router.get("/genral", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).user;
+    const userID = (req as any).user;
     const pg = getPgClient();
+
+    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    if (ashaIDResult.rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
+    const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
         const query = `
@@ -249,10 +260,15 @@ router.post("/tb-first", verifyToken, async (req, res) => {
 });
 
 router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).user; // ASHA ID from JWT
-    console.log("Fetching TB screenings for ASHA:", ashaID);
+    const userID = (req as any).user; // ASHA ID from JWT
+    console.log("Fetching TB screenings for ASHA:", userID);
 
     const pg = getPgClient();
+    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    if (ashaIDResult.rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
+    const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
         const query = `
@@ -305,9 +321,14 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
 });
 
 router.post("/tb-followup", verifyToken, async (req, res) => {
-    const ashaID = (req as any).user;
-    console.log("Asha ID from token for TB follow-up:", ashaID);
+    const userID = (req as any).user;
+    console.log("Asha ID from token for TB follow-up:", userID);
     const pg = getPgClient();
+    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    if (ashaIDResult.rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
+    const ashaID = ashaIDResult.rows[0].asha_id;
 
     let {
         tb_id,
@@ -405,10 +426,15 @@ router.post("/tb-followup", verifyToken, async (req, res) => {
 
 //for getting tb followup data
 router.get("/tb/followups/:tb_id", verifyToken, async (req: Request, res: Response) => {
-    const ashaID = (req as any).user; // Extracted from JWT
+    const userID = (req as any).user; // Extracted from JWT
     const tb_id = req.params.tb_id;
-    console.log("Asha ID to get TB follow-ups from token:", ashaID);
+    console.log("Asha ID to get TB follow-ups from token:", userID);
     const pg = getPgClient();
+    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    if (ashaIDResult.rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
+    const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
         // --- Verify that this TB patient belongs to the logged-in ASHA worker ---
@@ -446,10 +472,14 @@ router.get("/tb/followups/:tb_id", verifyToken, async (req: Request, res: Respon
 
 router.post("/anc", verifyToken, async (req, res) => {
     try {
-    const ashaID = (req as any).user;
-    console.log("Asha ID from token for ANC visit:", ashaID);
+    const userID = (req as any).user;
+    console.log("Asha ID from token for ANC visit:", userID);
     const pg = getPgClient();
-    
+    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    if (ashaIDResult.rows.length === 0) {
+        return res.status(403).json({ error: "ASHA worker not found" });
+    }
+    const ashaID = ashaIDResult.rows[0].asha_id;
     const {
         patient_id,
         first_anc_visit_date,
@@ -548,10 +578,15 @@ router.post("/anc", verifyToken, async (req, res) => {
 router.get('/anc', verifyToken, async (req: Request, res: Response) => {
     try {
         const pg = getPgClient();
-        const asha_id = (req as any).user; // JWT provides ASHA ID
+        const userID = (req as any).user; // JWT provides ASHA ID
 
         // Optional filter – get ANC for a specific woman
         const womanId = req.query.woman_id as string | undefined;
+        const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+        if (ashaIDResult.rows.length === 0) {
+            return res.status(403).json({ error: "ASHA worker not found" });
+        }
+        const asha_id = ashaIDResult.rows[0].asha_id;
 
         let query = `
             SELECT 
@@ -593,9 +628,14 @@ router.get('/anc', verifyToken, async (req: Request, res: Response) => {
 
 router.post("/anc-followup", verifyToken, async (req: Request, res: Response) => {
     try {
-        const asha_id = (req as any).user; // ✅ consistent with other endpoints
+        const userID = (req as any).user; // ✅ consistent with other endpoints
         const pg = getPgClient();
-        console.log("Asha ID from token for ANC follow-up:", asha_id);
+        console.log("Asha ID from token for ANC follow-up:", userID);
+        const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+        if (ashaIDResult.rows.length === 0) {
+            return res.status(403).json({ error: "ASHA worker not found" });
+        }
+        const asha_id = ashaIDResult.rows[0].asha_id;
 
         const {
             patient_id,
