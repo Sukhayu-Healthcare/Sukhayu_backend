@@ -11,7 +11,7 @@ export const anc = express.Router();
 anc.post("/survey/start", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const ashaId = (req as any).user.userId;
+    const ashaId = (req as any).user;
 
     const { patient_id, survey_type } = req.body;
 
@@ -448,7 +448,7 @@ anc.get("/tb/:id", verifyToken, async (req: Request, res: Response) => {
 anc.post("/save", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const ashaId = (req as any).user.userId;
+    const ashaId = (req as any).user;
 
     const {
       survey_id,

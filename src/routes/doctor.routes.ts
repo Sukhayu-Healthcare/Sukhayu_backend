@@ -151,7 +151,7 @@ doctor.post("/login", async (req: Request, res: Response) => {
 doctor.get("/queue", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    const doctorId = (req as any).user;
 
     const result = await pg.query(
       `SELECT q.queue_id, q.patient_id, q.priority, q.tagged_emergency,
@@ -187,7 +187,7 @@ doctor.get("/queue", verifyToken, async (req: Request, res: Response) => {
 doctor.post("/queue/add", verifyToken, async (req: Request, res: Response) => {
   try {
     const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    const doctorId = (req as any).user;
     const { patient_id, priority } = req.body;
 
     const result = await pg.query(
@@ -235,7 +235,7 @@ doctor.put("/queue/emergency/:queue_id", verifyToken, async (req, res) => {
 doctor.get("/queue/stats", verifyToken, async (req, res) => {
   try {
     const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    const doctorId = (req as any).user;
 
     const queue = await pg.query(
       `SELECT priority, in_time 
@@ -383,7 +383,7 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
 
 doctor.get('/api/doctors', verifyToken ,async (req, res) => {
   try {
-      const docID = (req as any).userId
+      const docID = (req as any).user
       const pg = getPgClient()
       const result = await pg.query('SELECT * FROM doctors WHERE doc_id = $1',[docID]);
       res.json(result.rows);

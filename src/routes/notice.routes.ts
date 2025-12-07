@@ -49,6 +49,7 @@ noti.post("/save-token", verifyToken, async (req, res) => {
     const userId = (req as any).user;     // from JWT middleware
     const { fcm_token } = req.body;
     const pool = getPgClient();
+    console.log("Saving token for user:", userId, "Token:", fcm_token);
   
     if (!fcm_token) {
       return res.status(400).json({ message: "FCM token is required" });
