@@ -275,7 +275,7 @@ doctor.post(
   verifyToken,
   async (req: Request, res: Response) => {
     const pg = getPgClient();
-    const doctorId = (req as any).user.userId;
+    const doctorId = (req as any).user;
 
     const { patient_id, diagnosis, notes, items } = req.body;
 
@@ -293,7 +293,7 @@ doctor.post(
          WHERE patient_id=$1 AND doctor_id=$2 AND status='WAITING'`,
         [patient_id, doctorId]
       );
-
+      
       // Create consultation
       const consultRes = await pg.query(
         `INSERT INTO consultations (patient_id, doc_id, diagnosis, notes)
