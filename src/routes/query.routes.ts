@@ -4,9 +4,9 @@ import { getPgClient } from "../config/postgress.js";  // your DB connection fun
 const router = express.Router();
 
 router.post("/patient", async (req, res) => {
+    try {
     const pg = getPgClient();
     
-    try {
         const {
             patient_id,
             asha_id,          // optional
