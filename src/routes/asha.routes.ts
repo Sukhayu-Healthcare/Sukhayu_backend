@@ -662,7 +662,12 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
     const pg = getPgClient();
     const supervisorUserId = (req as any).user; // user_id
 
-    // 1️⃣ Check if logged in user is a Supervisor (USERS)
+    // --- Pagination logic ---
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 5;
+    const offset = (page - 1) * limit;
+
+    // 1️⃣ Check role
     const checkUser = await pg.query(
       `SELECT user_role FROM users WHERE user_id = $1`,
       [supervisorUserId]
@@ -678,7 +683,7 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
         .json({ message: "Only Supervisors can view all ASHA workers" });
     }
 
-    // 2️⃣ Get supervisor's ASHA id
+    // 2️⃣ Get supervisor asha_id
     const supAshaRes = await pg.query(
       `SELECT asha_id FROM asha_workers WHERE user_id = $1`,
       [supervisorUserId]
@@ -692,7 +697,19 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
 
     const supervisorAshaId = supAshaRes.rows[0].asha_id;
 
-    // 3️⃣ Fetch all ASHA workers under this supervisor
+    // 3️⃣ Total count (for showing total pages)
+    const countRes = await pg.query(
+      `SELECT COUNT(*) AS total 
+       FROM asha_workers a 
+       JOIN users u ON a.user_id = u.user_id
+       WHERE a.supervisor_id = $1
+         AND u.user_role = 'ASHA'`,
+      [supervisorAshaId]
+    );
+
+    const total = Number(countRes.rows[0].total);
+
+    // 4️⃣ Fetch paginated ASHA workers
     const result = await pg.query(
       `SELECT 
          a.asha_id,
@@ -706,16 +723,25 @@ asha.get("/all-ashas", verifyToken, async (req: Request, res: Response) => {
        FROM asha_workers a
        JOIN users u ON a.user_id = u.user_id
        WHERE a.supervisor_id = $1
-         AND u.user_role = 'ASHA'`,
-      [supervisorAshaId]
+         AND u.user_role = 'ASHA'
+       ORDER BY a.asha_id
+       LIMIT $2 OFFSET $3`,
+      [supervisorAshaId, limit, offset]
     );
 
-    return res.status(200).json({ ashas: result.rows });
+    return res.status(200).json({
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      ashas: result.rows,
+    });
   } catch (error) {
     console.error("Error in /all-ashas:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 
 // -----------------------------------------
