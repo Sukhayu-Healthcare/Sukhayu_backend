@@ -284,45 +284,43 @@ doctor.post("/consultation-with-items",verifyToken,async (req: Request, res: Res
         doctorId,
       ]);
 
-
-      
       // Create consultation
       const consultRes = await pg.query(
         `INSERT INTO consultations (patient_id, doctor_id, diagnosis, notes)
-         VALUES ($1,$2,$3,$4)
+         VALUES ($1, $2, $3, $4)
          RETURNING consultation_id, consultation_date`,
         [patient_id, doctorId, diagnosis ?? null, notes ?? null]
       );
 
       const { consultation_id, consultation_date } = consultRes.rows[0];
 
-      // Insert medicines
-      if (Array.isArray(items) && items.length) {
-        const values: any[] = [];
-        const rows = items.map((it, i) => {
-          const base = i * 6;
-          values.push(
-            consultation_id,
-            it.medicine_name,
-            it.dosage ?? null,
-            it.frequency ?? null,
-            it.duration ?? null,
-            it.instructions ?? null
-          );
-          return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},${
-            base + 5
-          },$${base + 6})`;
-        });
-
+      // Prescription items insert using UNNEST (safest)
+      if (Array.isArray(items) && items.length > 0) {
         await pg.query(
-          `INSERT INTO prescription_items
+          `
+          INSERT INTO prescription_items
           (consultation_id, medicine_name, dosage, frequency, duration, instructions)
-          VALUES ${rows.join(",")}`,
-          values
+          SELECT * FROM UNNEST (
+            $1::INT[],
+            $2::TEXT[],
+            $3::TEXT[],
+            $4::TEXT[],
+            $5::TEXT[],
+            $6::TEXT[]
+          )
+        `,
+          [
+            items.map(() => consultation_id),
+            items.map((i: any) => i.medicine_name),
+            items.map((i: any) => i.dosage ?? null),
+            items.map((i: any) => i.frequency ?? null),
+            items.map((i: any) => i.duration ?? null),
+            items.map((i: any) => i.instructions ?? null),
+          ]
         );
       }
 
-      // Free doctor
+      // Doctor free
       await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [
         doctorId,
       ]);
@@ -345,6 +343,7 @@ doctor.post("/consultation-with-items",verifyToken,async (req: Request, res: Res
     }
   }
 );
+
 
 /* ============================================================
    8️⃣ DOCTOR CONSULTATION HISTORY
