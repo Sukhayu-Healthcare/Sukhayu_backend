@@ -37,6 +37,7 @@ app.use("/api/v1/patient", patient);
 app.use("/api/v1/survey",router);
 app.use('/api/v1/lhv', lhv);
 app.use('/api/v1/notice', noti);
+app.use('api/v1/query', router);
 
 app.get('/',(req,res)=>{
   res.send("whatsup")

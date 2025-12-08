@@ -3,7 +3,7 @@ import { getPgClient } from "../config/postgress.js";  // your DB connection fun
 
 const router = express.Router();
 
-router.post("/", async (req, res) => {
+router.post("/patient", async (req, res) => {
     const pg = getPgClient();
     
     try {
