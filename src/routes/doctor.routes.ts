@@ -283,7 +283,7 @@ doctor.post(
       await pg.query("BEGIN");
 
       // Doctor busy
-      await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doctor_id=$1`, [
         doctorId,
       ]);
 
@@ -291,7 +291,7 @@ doctor.post(
       
       // Create consultation
       const consultRes = await pg.query(
-        `INSERT INTO consultations (patient_id, doc_id, diagnosis, notes)
+        `INSERT INTO consultations (patient_id, doctor_id, diagnosis, notes)
          VALUES ($1,$2,$3,$4)
          RETURNING consultation_id, consultation_date`,
         [patient_id, doctorId, diagnosis ?? null, notes ?? null]
@@ -326,7 +326,7 @@ doctor.post(
       }
 
       // Free doctor
-      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doctor_id=$1`, [
         doctorId,
       ]);
 
@@ -339,7 +339,7 @@ doctor.post(
       });
     } catch (error) {
       await pg.query("ROLLBACK");
-      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doctor_id=$1`, [
         doctorId,
       ]);
 
