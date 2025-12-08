@@ -270,10 +270,7 @@ doctor.get("/queue/stats", verifyToken, async (req, res) => {
 /* ============================================================
    7️⃣ CONSULTATION WITH MEDICINES
 ============================================================ */
-doctor.post(
-  "/consultation-with-items",
-  verifyToken,
-  async (req: Request, res: Response) => {
+doctor.post("/consultation-with-items",verifyToken,async (req: Request, res: Response) => {
     const pg = getPgClient();
     const doctorId = (req as any).user;
 
@@ -283,7 +280,7 @@ doctor.post(
       await pg.query("BEGIN");
 
       // Doctor busy
-      await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doctor_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='ON' WHERE doc_id=$1`, [
         doctorId,
       ]);
 
@@ -326,7 +323,7 @@ doctor.post(
       }
 
       // Free doctor
-      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doctor_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [
         doctorId,
       ]);
 
@@ -339,7 +336,7 @@ doctor.post(
       });
     } catch (error) {
       await pg.query("ROLLBACK");
-      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doctor_id=$1`, [
+      await pg.query(`UPDATE doctors SET doc_status='OFF' WHERE doc_id=$1`, [
         doctorId,
       ]);
 
