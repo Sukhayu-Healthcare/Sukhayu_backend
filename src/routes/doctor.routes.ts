@@ -388,6 +388,7 @@ doctor.get('patient/:id', verifyToken ,async (req, res) => {
   try {
       const patientID = req.params.id;
       const pg = getPgClient()
+      console.log("Patient ID:", patientID);
       const result = await pg.query('SELECT * FROM patients WHERE patient_id = $1',[patientID]);
       console.log(result.rows);
       res.json(result.rows);
