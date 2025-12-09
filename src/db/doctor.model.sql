@@ -3,7 +3,7 @@ CREATE TABLE doctors (
     doc_name VARCHAR(100) NOT NULL,
     doc_password VARCHAR(255) NOT NULL,
     doc_profile_pic VARCHAR(500),
-    doc_role VARCHAR(10) NOT NULL CHECK (doc_role IN ('CHO', 'PHC', 'CIVIL')),
+    doc_role VARCHAR(10) NOT NULL CHECK (doc_role IN ('CHO', 'MO', 'CIVIL')),
     hospital_address VARCHAR(255) NOT NULL,
     hospital_village VARCHAR(100) NOT NULL,
     hospital_taluka VARCHAR(100) NOT NULL,
