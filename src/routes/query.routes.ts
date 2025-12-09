@@ -1,14 +1,15 @@
 import express from "express";
 import { getPgClient } from "../config/postgress.js";  // your DB connection function
+import { verifyToken } from "../utils/middleware.js";
 
 const router = express.Router();
 
-router.post("/patient", async (req, res) => {
+router.post("/patient", verifyToken , async (req, res) => {
     try {
+        const patient_id = (req as any).user;
     const pg = getPgClient();
     
         const {
-            patient_id,
             asha_id,          // optional
             text,
             voice_url,        // can be null if not sending voice

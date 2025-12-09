@@ -102,14 +102,38 @@ router.get("/genral", verifyToken, async (req: Request, res: Response) => {
     const userID = (req as any).user;
     const pg = getPgClient();
 
-    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+    console.log("Fetching screenings for ASHA:", userID);
+
+    // 📌 Pagination inputs
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const offset = (page - 1) * limit;
+
+    // 1. Get ASHA ID
+    const ashaIDResult = await pg.query(
+        "SELECT asha_id FROM asha_workers WHERE user_id = $1",
+        [userID]
+    );
+
     if (ashaIDResult.rows.length === 0) {
         return res.status(403).json({ error: "ASHA worker not found" });
     }
+
     const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
-        const query = `
+        // 2. Count total screenings
+        const countResult = await pg.query(
+            `SELECT COUNT(*) AS total FROM patient_screening WHERE asha_id = $1`,
+            [ashaID]
+        );
+
+        const total = parseInt(countResult.rows[0].total);
+        const totalPages = Math.ceil(total / limit);
+
+        // 3. Fetch paginated data
+        const result = await pg.query(
+            `
             SELECT 
                 ps.*,
                 p.patient_id,
@@ -123,11 +147,16 @@ router.get("/genral", verifyToken, async (req: Request, res: Response) => {
             LEFT JOIN patient p ON p.patient_id = ps.patient_id
             WHERE ps.asha_id = $1
             ORDER BY ps.screening_date DESC
-        `;
-
-        const result = await pg.query(query, [ashaID]);
+            LIMIT $2 OFFSET $3
+            `,
+            [ashaID, limit, offset]
+        );
 
         return res.status(200).json({
+            page,
+            limit,
+            total,
+            totalPages,
             screenings: result.rows
         });
 
@@ -136,6 +165,7 @@ router.get("/genral", verifyToken, async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 
 router.post("/tb-first", verifyToken, async (req, res) => {
@@ -260,17 +290,39 @@ router.post("/tb-first", verifyToken, async (req, res) => {
 });
 
 router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
-    const userID = (req as any).user; // ASHA ID from JWT
+    const userID = (req as any).user; 
     console.log("Fetching TB screenings for ASHA:", userID);
 
     const pg = getPgClient();
-    const ashaIDResult = await pg.query("SELECT asha_id FROM asha_workers WHERE user_id = $1", [userID]);
+
+    // 📌 Pagination Inputs
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 5;
+    const offset = (page - 1) * limit;
+
+    // 1. Get ASHA ID
+    const ashaIDResult = await pg.query(
+        "SELECT asha_id FROM asha_workers WHERE user_id = $1",
+        [userID]
+    );
+
     if (ashaIDResult.rows.length === 0) {
         return res.status(403).json({ error: "ASHA worker not found" });
     }
+
     const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
+        // 2. Count total TB records
+        const countResult = await pg.query(
+            "SELECT COUNT(*) AS total FROM tb_patients WHERE asha_id = $1",
+            [ashaID]
+        );
+
+        const total = parseInt(countResult.rows[0].total);
+        const totalPages = Math.ceil(total / limit);
+
+        // 3. Fetch paginated TB screening data
         const query = `
             SELECT 
                 t.tb_id,
@@ -304,13 +356,16 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
             LEFT JOIN patient p ON p.patient_id = t.patient_id
             WHERE t.asha_id = $1
             ORDER BY t.created_at DESC
+            LIMIT $2 OFFSET $3
         `;
 
-        const values = [ashaID];
-
-        const result = await pg.query(query, values);
+        const result = await pg.query(query, [ashaID, limit, offset]);
 
         return res.status(200).json({
+            page,
+            limit,
+            total,
+            totalPages,
             tb_screenings: result.rows
         });
 
@@ -319,6 +374,7 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 router.post("/tb-followup", verifyToken, async (req, res) => {
     const userID = (req as any).user;
