@@ -3,6 +3,7 @@ import { verifyToken } from "../utils/middleware.js";
 import express from "express";
 import { getPgClient } from "../config/postgress.js";
 import { encrypt } from "../utils/encryption.js";
+import { decrypt } from "../utils/encryption.js";
 
 export const router = express.Router();
 
@@ -269,7 +270,7 @@ router.post("/tb-first", verifyToken, async (req, res) => {
 
         const tbValues = [
             finalPatientId,
-            encryptedName, age, gender, encryptedMobile, encryptedAddress,
+            encryptedName, age, gender, mobile, encryptedAddress,
             asha_id, screening_date,
             cough_2_weeks, cough_blood, fever_2_weeks, night_sweats,
             weight_loss, chest_pain, household_tb,
@@ -302,7 +303,6 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
 
     const pg = getPgClient();
 
-    // 📌 Pagination Inputs
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 5;
     const offset = (page - 1) * limit;
@@ -320,7 +320,7 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
     const ashaID = ashaIDResult.rows[0].asha_id;
 
     try {
-        // 2. Count total TB records
+        // 2. Count total records
         const countResult = await pg.query(
             "SELECT COUNT(*) AS total FROM tb_patients WHERE asha_id = $1",
             [ashaID]
@@ -329,7 +329,7 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
         const total = parseInt(countResult.rows[0].total);
         const totalPages = Math.ceil(total / limit);
 
-        // 3. Fetch paginated TB screening data
+        // 3. Fetch paginated rows
         const query = `
             SELECT 
                 t.tb_id,
@@ -339,7 +339,6 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
                 p.gender,
                 p.mobile,
                 p.address,
-
                 t.screening_date,
                 t.cough_2_weeks,
                 t.cough_blood,
@@ -368,12 +367,21 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
 
         const result = await pg.query(query, [ashaID, limit, offset]);
 
+        // 4. 🔐 Decrypt sensitive fields
+        const decryptedRows = result.rows.map(tb => ({
+            ...tb,
+            patient_name: tb.patient_name ? decrypt(tb.patient_name) : null,
+            mobile: tb.mobile ? decrypt(tb.mobile) : null,
+            address: tb.address ? decrypt(tb.address) : null
+        }));
+
+        // Final Response
         return res.status(200).json({
             page,
             limit,
             total,
             totalPages,
-            tb_screenings: result.rows
+            tb_screenings: decryptedRows
         });
 
     } catch (error) {
@@ -381,6 +389,7 @@ router.get("/tb-first", verifyToken, async (req: Request, res: Response) => {
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
 
 
 router.post("/tb-followup", verifyToken, async (req, res) => {
