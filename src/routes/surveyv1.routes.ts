@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import { verifyToken } from "../utils/middleware.js";
 import express from "express";
 import { getPgClient } from "../config/postgress.js";
+import { encrypt } from "../utils/encryption.js";
+
 export const router = express.Router();
 
 //for posting screening data
@@ -237,6 +239,11 @@ router.post("/tb-first", verifyToken, async (req, res) => {
         // ---------------------------------------------------
         // (B) Insert TB screening record
         // ---------------------------------------------------
+
+        const encryptedName = encrypt(patient_name);
+        const encryptedMobile = encrypt(mobile);
+        const encryptedAddress = encrypt(address);
+
         const insertTB = `
             INSERT INTO tb_patients (
                 patient_id,
@@ -262,7 +269,7 @@ router.post("/tb-first", verifyToken, async (req, res) => {
 
         const tbValues = [
             finalPatientId,
-            patient_name, age, gender, mobile, address,
+            encryptedName, age, gender, encryptedMobile, encryptedAddress,
             asha_id, screening_date,
             cough_2_weeks, cough_blood, fever_2_weeks, night_sweats,
             weight_loss, chest_pain, household_tb,
