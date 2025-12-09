@@ -84,3 +84,43 @@ router.post("/", verifyToken, async (req: Request, res: Response) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+
+router.get("/", verifyToken, async (req: Request, res: Response) => {
+    try {
+      const pg = getPgClient();
+  
+      const result = await pg.query(`
+        SELECT 
+          doc_id,
+          doc_name,
+          doc_profile_pic,
+          doc_role,
+          hospital_address,
+          hospital_village,
+          hospital_taluka,
+          hospital_district,
+          hospital_state,
+          doc_phone,
+          doc_speciality,
+          doc_status,
+          doc_created_at
+        FROM doctors
+        ORDER BY doc_name ASC
+      `);
+  
+      return res.json({
+        total: result.rows.length,
+        doctors: result.rows,
+      });
+  
+    } catch (err) {
+      console.error("Error fetching doctors:", err);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  
+
+
+
+
