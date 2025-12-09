@@ -355,22 +355,44 @@ doctor.get("/consultations", verifyToken, async (req: Request, res: Response) =>
 
     console.log("Doctor ID:", doctorId);
 
-    const result = await pg.query(
-      `SELECT * FROM consultations 
-       WHERE doctor_id=$1 
-       ORDER BY consultation_date DESC`,
-      [doctorId]
-    );
+    const query = `
+      SELECT 
+        c.consultation_id,
+        c.diagnosis,
+        c.notes,
+        c.consultation_date,
+
+        p.patient_id,
+        p.gender,
+        p.dob,
+        p.phone AS patient_phone,
+        p.profile_pic,
+        p.village,
+        p.taluka,
+        p.district,
+        p.history AS patient_history,
+
+        u.user_name AS patient_name
+      FROM consultations c
+      JOIN patient p ON c.patient_id = p.patient_id
+      JOIN users u ON p.user_id = u.user_id
+      WHERE c.doctor_id = $1
+      ORDER BY c.consultation_date DESC
+    `;
+
+    const result = await pg.query(query, [doctorId]);
 
     return res.json({
       total: result.rows.length,
       consultations: result.rows,
     });
+
   } catch (error) {
     console.error("History error:", error);
     return res.status(500).json({ message: "Internal Server Error" });
   }
 });
+
 
 doctor.get('/api/doctors', verifyToken ,async (req, res) => {
   try {
@@ -419,7 +441,7 @@ doctor.get('/patient/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
-    console.log("Patient data retrieved:", result.rows[0])
+    console.log("Patient data retrieved:", result.rows[0])  
 
     res.json(result.rows[0]);
   } catch (err) {
