@@ -27,6 +27,7 @@ doctor.get('/patient/:id', verifyToken, async (req, res) => {
     `;
 
     const result = await pg.query(query, [patientID]);
+    console.log("Patient fetch result:", result);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Patient not found" });
