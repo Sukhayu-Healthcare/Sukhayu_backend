@@ -419,6 +419,8 @@ doctor.get('/patient/:id', verifyToken, async (req, res) => {
       return res.status(404).json({ error: "Patient not found" });
     }
 
+    console.log("Patient data retrieved:", result.rows[0])
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Error fetching patient:", err);
