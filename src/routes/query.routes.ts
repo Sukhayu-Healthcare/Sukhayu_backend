@@ -6,6 +6,7 @@ const router = express.Router();
 
 router.post("/patient", verifyToken , async (req, res) => {
     try {
+        console.log("Patient query ")
         const patient_id = (req as any).user;
     const pg = getPgClient();
     
