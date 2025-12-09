@@ -387,6 +387,7 @@ doctor.get('/api/doctors', verifyToken ,async (req, res) => {
 doctor.get('/patient/:id', verifyToken, async (req, res) => {
   try {
     const patientID = req.params.id;
+    console.log("Fetching patient with ID:", patientID);
 
     const pg = getPgClient();
 
