@@ -26,7 +26,7 @@ const PORT = Number(process.env.PORT) || 3000;
 
 async function DBConnection() {
   await pgConnection();
-  await mongoConnection();
+//  await mongoConnection();
 }
 
 DBConnection();
